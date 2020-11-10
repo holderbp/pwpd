@@ -7,5 +7,5 @@ This repository contains a module of subroutines for calculating the population 
 
 For a region divided into pixels of area <i>a<sub>j</sub></i> and population <i>p<sub>j</sub></i>, the PWD provides a measure of the "lived" population density, or that experienced by the average inhabitant.
 
-The calculation of PWD for a political region therefore relies on a high resolution dataset of population.  The code here utilizes the [Global Human Settlement Population (GHS-POP)](https://ghsl.jrc.ec.europa.eu/ghs_pop2019.php) raster image, which must be placed in the data/ghs sub-directory.
+The calculation of PWD for a political region therefore relies on a high resolution dataset of population.  The code here utilizes the [Global Human Settlement Population (GHS-POP)](https://ghsl.jrc.ec.europa.eu/ghs_pop2019.php) raster image, which must be placed in the `data/ghs` sub-directory.
 
