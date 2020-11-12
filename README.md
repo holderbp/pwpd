@@ -1,5 +1,5 @@
 # Population-weighted population density (PWPD)
-#### Ben Holder and Niayesh Afshordi
+### Authors: Ben Holder and Niayesh Afshordi
 
 This repository contains a module of subroutines, `src/pwpd.py`, for calculating the population weighted population density (PWD):
 
@@ -17,4 +17,4 @@ To calculate PWD for a particular political region, the boundaries of that regio
 
 Shape files for countries of the world are provided here in the `data/shapefiles/world` directory.  These are used, e.g., by the `src/get_country_pwpd.py` helper function, which takes a single commandline argument: the three-letter country code (e.g., USA, AFG, FRA). Country shapefiles were taken from the public domain [_Natural Earth Vector_ dataset](https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-countries-2/) (also available on [Github](https://github.com/nvkelso/natural-earth-vector)).
 
-Shape files for US counties should be downloaded from the [US Census](https://www2.census.gov/geo/tiger/TIGER2019/COUNTY/) (79MB) and placed in the `data/shapefiles/US-counties` directory.  
+Shape files for US counties should be downloaded from the [US Census](https://www2.census.gov/geo/tiger/TIGER2019/COUNTY/) (79MB) and the unzipped directory `tl_2019_us_county` should be placed in the `data/shapefiles/US-counties` directory.  
