@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pwpd
 
-GHS_lengthscale = '1K' # '1K' or '250'
+GHS_lengthscale = '1km' # '1km' or '250m'
 
 #=== Accept country code (three-letter) from commandline input
 if (len(sys.argv) == 1):
@@ -37,8 +37,9 @@ img, img_transform = pwpd.get_GHS_windowed_subimage(country_m)
 #=== Get population and population-weighted--population density
 arr = np.array(img)
 arr[(arr == pwpd.GHS_no_data_value)] = 0.0
-(pop, pwd) = pwpd.get_pop_and_pwpd(arr)
+(pop, pwd, pwlogpd) = pwpd.get_pop_pwpd_pwlogpd(arr)
 
 #=== Print result to user
-print("The country " + countrycode +  f" has a population of {pop:.2e} and a PWPD of {pwd:.1f}")
+print("The country " + countrycode +  f" has a population of {pop:.2e}, a PWPD of {pwd:.1f}"
+      + f" and an exp[ PWlogPD ] = {np.exp(pwlogpd):.1f}")
 

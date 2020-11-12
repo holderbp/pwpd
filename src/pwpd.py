@@ -4,9 +4,14 @@ import numpy as np
 import geopandas as gpd
 import rasterio
 import rasterio.mask
+import folium  # for making html maps with leaflet.js 
 
+############################################################
+#             GHS-POP parameters and methods               #
+############################################################
 #
-# GHS-POP info
+#
+# GHS-POP parameters
 #
 GHS_dir = "../data/ghs/"
 GHS_file_string1 = "GHS_POP_E2015_GLOBE_R2019A_54009_"
@@ -17,8 +22,49 @@ GHS_lengthscale = None
 GHS_Acell_in_kmsqd = None
 # code for the Mollweide coordinate system
 eps_mollweide = 'esri:54009'
+    
+def set_GHS_lengthscale(lengthstring):
+    """Set the lengthscale (250m or 1km) for the GHS data set"""
+    global GHS_lengthscale, GHS_Acell_in_kmsqd, GHS_filepath
+    # set lengthscale string for file manipulation
+    if (lengthstring == '250m'):
+        GHS_lengthscale = '250'
+    elif (lengthstring == '1km'):
+        GHS_lengthscale = '1K'
+    else:
+        print("***Error: GHS lengthscale", lengthstring, "not recognized.")
+        exit(0)
+    # set lengthscale value and pixel area
+    if (GHS_lengthscale == '250'):
+        GHS_resolution_in_km = 0.250
+    elif (GHS_lengthscale == '1K'):
+        GHS_resolution_in_km = 1.0
+    GHS_Acell_in_kmsqd = GHS_resolution_in_km**2
+    # set GHS image filepath
+    GHS_filepath =  GHS_dir + GHS_file_string1 \
+        + GHS_lengthscale + GHS_file_string2 + "/" + GHS_file_string1 \
+        + GHS_lengthscale + GHS_file_string2 +  ".tif"
+
+def get_GHS_windowed_subimage(window_df):
+    # get polygon shape(s) from the geopandas dataframe
+    windowshapes = window_df["geometry"]
+    # mask GHS-POP image with entire set of shapes
+    with rasterio.open(GHS_filepath) as src:
+        img, img_transform = \
+            rasterio.mask.mask(src, windowshapes, crop=True)
+        img_profile = src.profile
+        img_meta = src.meta
+    img_meta.update( { "driver": "GTiff",
+                       "height": img.shape[1],
+                       "width": img.shape[2],
+                       "transform": img_transform} )
+    # return only the first band (rasterio returns 3D array)
+    return img[0], img_transform
 
 
+############################################################
+#    Political region shapefiles: data and methods         #
+############################################################
 #
 # Countries polygons.
 #   Used file from here:
@@ -51,7 +97,6 @@ countryshape_filepath = countryshape_dir + "ne_50m_admin_0_countries.shp"
 # these countries have no entry
 places_w_no_shapefile = ['PSE', 'GIB', 'SSD', 'TUV']
 
-
 def load_country_shapefiles():
     #=== read in countries dataframe
     #    (keep only relevant columns and rename like in "codes")
@@ -59,42 +104,29 @@ def load_country_shapefiles():
     countryshapes = countryshapes[['SOVEREIGNT', 'ADM0_A3', 'geometry']]
     countryshapes.columns = ['name', 'threelett', 'geometry']
     return countryshapes
-    
-def set_GHS_lengthscale(lengthstring):
-    global GHS_lengthscale, GHS_Acell_in_kmsqd, GHS_filepath
-    GHS_lengthscale = lengthstring
-    if (GHS_lengthscale == '250'):
-        GHS_resolution_in_km = 0.250
-    elif (GHS_lengthscale == '1K'):
-        GHS_resolution_in_km = 1.0
-    GHS_Acell_in_kmsqd = GHS_resolution_in_km**2
-    # set GHS image filepath
-    GHS_filepath =  GHS_dir + GHS_file_string1 \
-        + GHS_lengthscale + GHS_file_string2 + "/" + GHS_file_string1 \
-        + GHS_lengthscale + GHS_file_string2 +  ".tif"
 
-def get_GHS_windowed_subimage(window_df):
-    # get polygon shape(s) from the geopandas dataframe
-    windowshapes = window_df["geometry"]
-    # mask GHS-POP image with entire set of shapes
-    with rasterio.open(GHS_filepath) as src:
-        img, img_transform = \
-            rasterio.mask.mask(src, windowshapes, crop=True)
-        img_profile = src.profile
-        img_meta = src.meta
-    img_meta.update( { "driver": "GTiff",
-                       "height": img.shape[1],
-                       "width": img.shape[2],
-                       "transform": img_transform} )
-    # return only the first band (rasterio returns 3D array)
-    return img[0], img_transform
 
-def get_pop_and_pwpd(arr):
+############################################################
+#        Population-weighted Density Calculation           #
+############################################################
+
+def get_pop_pwpd_pwlogpd(arr):
+    # total population is sum of population in each pixel
     totalpop = np.sum(arr)
     if (totalpop > 0):
-        pwpd = np.sum(np.multiply(arr, arr)) \
-            / GHS_Acell_in_kmsqd / totalpop
+        # calculate population-weighted population density
+        pwpd = np.sum(np.multiply(arr / GHS_Acell_in_kmsqd, arr) / totalpop)
+        # calculate the pop-weighted log(popdensity)
+        nonzero = (arr > 0)
+        pwlogpd = np.sum( np.multiply( np.log(arr[nonzero]/GHS_Acell_in_kmsqd),
+                                       arr[nonzero]) / totalpop )
     else:
         pwpd = 0.0
-    return (totalpop, pwpd)
+    return (totalpop, pwpd, pwlogpd)
+
+
+
+############################################################
+#                     Mapping Methods                      #
+############################################################
 

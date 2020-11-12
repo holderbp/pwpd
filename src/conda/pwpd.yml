@@ -25,7 +25,13 @@ dependencies:
   - mapclassify
   - jupyter
   - pyproj
+  - branca
+  - jinja2
+  - requests
+  - altair
+  - folium
   - pip
   - pip:
       - pygeotools
       - pygeoprocessing
+      - gmplot
