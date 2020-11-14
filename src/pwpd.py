@@ -2,6 +2,7 @@
 import sys
 import numpy as np
 import geopandas as gpd
+import pandas as pd
 import rasterio
 import rasterio.mask
 import folium  # for making html maps with leaflet.js 
@@ -65,8 +66,10 @@ def get_GHS_windowed_subimage(window_df):
 ############################################################
 #    Political region shapefiles: data and methods         #
 ############################################################
+
+
+#=== Shapefiles for the countries of the world.
 #
-# Countries polygons.
 #   Used file from here:
 #
 #     https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-countries-2/
@@ -92,18 +95,79 @@ def get_GHS_windowed_subimage(window_df):
 #
 #  The three-letter codes seem to be 'ADM0_A3' and name is 'SOVEREIGNT'
 #
-countryshape_dir = "../data/world-shapefiles/ne_50m_admin_0_countries/"
-countryshape_filepath = countryshape_dir + "ne_50m_admin_0_countries.shp"
+world_shape_dir = "../data/shapefiles/world/ne_50m_admin_0_countries/"
+world_shape_filepath = world_shape_dir + "ne_50m_admin_0_countries.shp"
 # these countries have no entry
 places_w_no_shapefile = ['PSE', 'GIB', 'SSD', 'TUV']
 
-def load_country_shapefiles():
+def load_world_shapefiles():
     #=== read in countries dataframe
     #    (keep only relevant columns and rename like in "codes")
-    countryshapes = gpd.read_file(countryshape_filepath)
-    countryshapes = countryshapes[['SOVEREIGNT', 'ADM0_A3', 'geometry']]
-    countryshapes.columns = ['name', 'threelett', 'geometry']
-    return countryshapes
+    world_shapes = gpd.read_file(world_shape_filepath)
+    world_shapes = world_shapes[['SOVEREIGNT', 'ADM0_A3', 'geometry']]
+    world_shapes.columns = ['name', 'threelett', 'geometry']
+    return world_shapes
+
+#=== Shapefiles for the US Counties
+#
+#   Used file from the US Census:
+#
+#       https://www2.census.gov/geo/tiger/TIGER2019/COUNTY
+#
+#   columns = ['STATEFP', 'COUNTYFP', 'COUNTYNS', 'GEOID', 'NAME',
+#              'NAMELSAD', 'LSAD', 'CLASSFP', 'MTFCC', 'CSAFP',
+#              'CBSAFP', 'METDIVFP', 'FUNCSTAT', 'ALAND',
+#              'AWATER', 'INTPTLAT', 'INTPTLON', 'geometry']
+#
+#   where 'NAME' is the county name (e.g., Saratoga), and
+#   'NAMELSAD' is the full county (e.g., Saratoga County).
+#
+UScounty_shape_dir = "../data/shapefiles/UScounties/"
+UScounty_shape_filepath = UScounty_shape_dir + "tl_2019_us_county/tl_2019_us_county.shp"
+#
+#=== File of US State FIPS codes to get names and abbreviations
+#    (these are not given in the shapefiles file)
+#
+#       columns = ['name','abb','fips']
+#  
+#    Adapted from:
+#
+#       https://www2.census.gov/programs-surveys/popest/
+#               geographies/2017/all-geocodes-v2017.xlsx
+#
+#    retaining only states ("Summary Level" = 040), and adding a
+#    few extra locations to match the county shapefiles file:
+#
+#       [American Samoa (AS), Guam (GU), North. Mar. Isl (MP),
+#        Puerto Rico (PR), Virgin Islands (VI)]
+#
+USstate_fips_filepath = UScounty_shape_dir + "US-state_fips-codes.csv"
+
+def load_UScounty_shapefiles():
+    #=== read in UScounties dataframe
+    #    (keep only relevant columns and rename like in "codes")
+    county_shapes = gpd.read_file(UScounty_shape_filepath)
+    county_shapes = county_shapes[['STATEFP', 'COUNTYFP', 'NAME',
+                                   'NAMELSAD', 'ALAND', 'geometry']]
+    county_shapes.columns = ['fips_state', 'fips_county', 'county',
+                             'countylong', 'landarea', 'geometry']
+    #=== Make FIPS codes integer-valued
+    county_shapes['fips_state'] = county_shapes['fips_state'].astype(int)
+    county_shapes['fips_county'] = county_shapes['fips_county'].astype(int)
+    #=== Add the state name and abbreviation for each county
+    #    using the file of US state FIPS codes
+    county_shapes['state'] = ""
+    county_shapes['stateabb'] = ""
+    statefips_df = pd.read_csv(USstate_fips_filepath)
+    statefips_df['fips'] = statefips_df['fips'].astype(int)
+    for index,row in county_shapes.iterrows():
+        fips = row.fips_state
+        thestate = (statefips_df['fips'] == fips)
+        county_shapes.at[index,'state'] = \
+            statefips_df[thestate]['name'].to_list()[0]
+        county_shapes.at[index,'stateabb'] = \
+            statefips_df[thestate]['abb'].to_list()[0]
+    return county_shapes
 
 
 ############################################################

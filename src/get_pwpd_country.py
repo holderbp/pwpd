@@ -3,23 +3,25 @@ import sys
 import numpy as np
 import pwpd
 
-GHS_lengthscale = '1km' # '1km' or '250m'
+GHS_epoch = '2015'
+GHS_lengthscale = '250m' # '1km' or '250m'
 
-#=== Accept country code (three-letter) from commandline input
+#=== Accept three-letter country code from commandline input
 if (len(sys.argv) == 1):
-    print("***Error: Three letter country code is a required argument.")
+    print("***Error: Three-letter country code is a required argument.")
     exit(0)
 elif (len(sys.argv) == 2):
-    countrycode = sys.argv[1]
+    countrycode = sys.argv[1].upper()  # country code must be all-caps
 else:
     print("***Error: Unrecognized commandline option")
     exit(0)
 
-#=== load the countries polygons
-countryshapes_df = pwpd.load_country_shapefiles()
+#=== load the world shapefiles
+worldshapes_df = pwpd.load_world_shapefiles()
 
 #=== get country polygon
-country = countryshapes_df[countryshapes_df['threelett'] == countrycode]
+country = worldshapes_df[worldshapes_df['threelett'] == countrycode]
+countryname = country['name'].to_list()[0]
 
 #=== transform to Mollweide
 #
@@ -40,6 +42,10 @@ arr[(arr == pwpd.GHS_no_data_value)] = 0.0
 (pop, pwd, pwlogpd) = pwpd.get_pop_pwpd_pwlogpd(arr)
 
 #=== Print result to user
-print("The country " + countrycode +  f" has a population of {pop:.2e}, a PWPD of {pwd:.1f}"
-      + f" and an exp[ PWlogPD ] = {np.exp(pwlogpd):.1f}")
-
+print("=" * 80)
+print("Using the " + GHS_epoch + " GHS-POP image with resolution " + GHS_lengthscale + "...\n")
+print("The country of " + countryname + " (" + countrycode
+      + f") has a population of {int(pop):,d}.\n"
+      + f"The PWPD_{GHS_lengthscale:s} is {pwd:.1f} per km^2"
+      + f" and exp[ PWlogPD ] = {np.exp(pwlogpd):.1f}")
+print("=" * 80)
