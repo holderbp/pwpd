@@ -16,12 +16,12 @@ else:
     print("***Error: Unrecognized commandline option")
     exit(0)
 
-#=== load the world shapefiles
-worldshapes_df = pwpd.load_world_shapefiles()
+#=== load the shapefiles for all countries
+allcountries_df = pwpd.load_world_shapefiles()
 
-#=== get country polygon
-country = worldshapes_df[worldshapes_df['threelett'] == countrycode]
-countryname = country['name'].to_list()[0]
+#=== get the shapefile for the requested country
+(country, countryname) = \
+    pwpd.get_country_by_countrycode(allcountries_df, countrycode)
 
 #=== transform to Mollweide
 #

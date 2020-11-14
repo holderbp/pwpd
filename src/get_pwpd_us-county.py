@@ -6,60 +6,45 @@ import pwpd
 GHS_epoch = '2015'
 GHS_lengthscale = '250m' # '1km' or '250m'
 
-#=== Accept either [stateabb county] or their FIPS codes
+#=== Parse commandline input:
+#
+#    Accept either [stateabb countyname] or their FIPS codes
+#
 fips_input = False
-if (len(sys.argv) < 3):
-    print("***Error: Two command-line arguments are required\n")
-    print("\t python get_pwpd_US-county.py <state_abbrev> <county>")
-    print("\t\tOR")
-    print("\t python get_pwpd_US-county.py <stateFIPS> <countyFIPS>")
-    print("\nUse quotes if a state/county has multiple words.")
-    exit(0)
-elif (len(sys.argv) == 3):
-    # check if it is a FIPS code
+if (len(sys.argv) == 3):
     try:
+        # check if it is a FIPS code
         fips_state = int(sys.argv[1])
         fips_county = int(sys.argv[2])
         fips_input = True
     except ValueError:
+        # if it is not, then accept the names
         stateabb = sys.argv[1].lower()
         name_county = sys.argv[2].lower()
 else:
-    print("***Error: Unrecognized commandline option(s)")
+    print("\nTwo command-line arguments are required:\n")
+    print("\t python get_pwpd_us-county.py <state_abbrev> <countyname>")
+    print("\n\t\tOR\n")
+    print("\t python get_pwpd_us-county.py <stateFIPS> <countyFIPS>")
+    print("\nExample input:")
+    print("\t python get_pwpd_us-county.py NY Saratoga")
+    print("\t python get_pwpd_us-county.py 36 91")
+    print("\t python get_pwpd_us-county.py NY \"Saratoga County\"")
+    print("\t python get_pwpd_us-county.py VA \"Richmond County\"")
+    print("\t python get_pwpd_us-county.py VA \"Richmond City\"")
+    print("\n(Use the conda file pwpd.yml)")
     exit(0)
 
-#=== load the US-county shapefiles
+#=== load the dataframe all US-county shapefiles
 countyshapes_df = pwpd.load_UScounty_shapefiles()
 
-#=== get country polygon
+#=== get the shapefile for the requested county
 if fips_input:
-    thecounty = ( (countyshapes_df['fips_state'] == fips_state)
-                  & (countyshapes_df['fips_county'] == fips_county) )
-    Nselected = len(countyshapes_df[thecounty])
-    if (Nselected != 1):
-        print(f"***Error: For the requested FIPS = ({fips_state:d},{fips_county:d})")
-        print(f"          {Nselected:d} counties were found.")
-        exit(0)
-    county = countyshapes_df[thecounty]
-    name_state = county['state'].to_list()[0]
-    stateabb = county['stateabb'].to_list()[0]
-    name_countylong = county['countylong'].to_list()[0]
+    (county, name_state, stateabb, name_countylong) = \
+        pwpd.get_UScounty_by_fips(countyshapes_df, fips_state, fips_county)
 else:
-    # Check county name against both short and long to handle, e.g.,
-    # Virginia's "Richmond city" and "Richmond County"
-    thecounty = ( (countyshapes_df['stateabb'].str.lower() == stateabb)
-                  & ( (countyshapes_df['county'].str.lower() == name_county)
-                      | (countyshapes_df['countylong'].str.lower() == name_county) ) )
-    Nselected = len(countyshapes_df[thecounty])
-    if (Nselected != 1):
-        print(f"***Error: For {name_county:s}, {stateabb.upper(),s}")
-        print(f"          {Nselected:d} counties were found.")
-        exit(0)
-    county = countyshapes_df[thecounty]
-    name_state = county['state'].to_list()[0]
-    name_countylong = county['countylong'].to_list()[0]
-    fips_state = county['fips_state'].to_list()[0]
-    fips_county = county['fips_county'].to_list()[0]
+    (county, fips_state, fips_county, name_state, name_countylong) = \
+        pwpd.get_UScounty_by_name(countyshapes_df, stateabb, name_county)
 
 #=== transform to Mollweide
 #

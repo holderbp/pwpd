@@ -93,7 +93,7 @@ def get_GHS_windowed_subimage(window_df):
 #    'NAME_PL', 'NAME_PT', 'NAME_RU', 'NAME_SV', 'NAME_TR', 'NAME_VI',
 #    'NAME_ZH', 'geometry'],
 #
-#  The three-letter codes seem to be 'ADM0_A3' and name is 'SOVEREIGNT'
+#  The three-letter country code is 'ADM0_A3' and name is 'SOVEREIGNT'
 #
 world_shape_dir = "../data/shapefiles/world/ne_50m_admin_0_countries/"
 world_shape_filepath = world_shape_dir + "ne_50m_admin_0_countries.shp"
@@ -101,12 +101,17 @@ world_shape_filepath = world_shape_dir + "ne_50m_admin_0_countries.shp"
 places_w_no_shapefile = ['PSE', 'GIB', 'SSD', 'TUV']
 
 def load_world_shapefiles():
-    #=== read in countries dataframe
+    #=== read in dataframe of shapefiles for all countries
     #    (keep only relevant columns and rename like in "codes")
-    world_shapes = gpd.read_file(world_shape_filepath)
-    world_shapes = world_shapes[['SOVEREIGNT', 'ADM0_A3', 'geometry']]
-    world_shapes.columns = ['name', 'threelett', 'geometry']
-    return world_shapes
+    allcountries_df = gpd.read_file(world_shape_filepath)
+    allcountries_df = allcountries_df[['SOVEREIGNT', 'ADM0_A3', 'geometry']]
+    allcountries_df.columns = ['name', 'threelett', 'geometry']
+    return allcountries_df
+
+def get_country_by_countrycode(allcountries_df, countrycode):
+    country = allcountries_df[allcountries_df['threelett'] == countrycode]
+    countryname = country['name'].to_list()[0]
+    return (country, countryname)
 
 #=== Shapefiles for the US Counties
 #
@@ -146,28 +151,61 @@ USstate_fips_filepath = UScounty_shape_dir + "US-state_fips-codes.csv"
 def load_UScounty_shapefiles():
     #=== read in UScounties dataframe
     #    (keep only relevant columns and rename like in "codes")
-    county_shapes = gpd.read_file(UScounty_shape_filepath)
-    county_shapes = county_shapes[['STATEFP', 'COUNTYFP', 'NAME',
+    allcounties_df = gpd.read_file(UScounty_shape_filepath)
+    allcounties_df = allcounties_df[['STATEFP', 'COUNTYFP', 'NAME',
                                    'NAMELSAD', 'ALAND', 'geometry']]
-    county_shapes.columns = ['fips_state', 'fips_county', 'county',
+    allcounties_df.columns = ['fips_state', 'fips_county', 'county',
                              'countylong', 'landarea', 'geometry']
     #=== Make FIPS codes integer-valued
-    county_shapes['fips_state'] = county_shapes['fips_state'].astype(int)
-    county_shapes['fips_county'] = county_shapes['fips_county'].astype(int)
+    allcounties_df['fips_state'] = allcounties_df['fips_state'].astype(int)
+    allcounties_df['fips_county'] = allcounties_df['fips_county'].astype(int)
     #=== Add the state name and abbreviation for each county
     #    using the file of US state FIPS codes
-    county_shapes['state'] = ""
-    county_shapes['stateabb'] = ""
+    allcounties_df['state'] = ""
+    allcounties_df['stateabb'] = ""
     statefips_df = pd.read_csv(USstate_fips_filepath)
     statefips_df['fips'] = statefips_df['fips'].astype(int)
-    for index,row in county_shapes.iterrows():
+    for index,row in allcounties_df.iterrows():
         fips = row.fips_state
         thestate = (statefips_df['fips'] == fips)
-        county_shapes.at[index,'state'] = \
+        allcounties_df.at[index,'state'] = \
             statefips_df[thestate]['name'].to_list()[0]
-        county_shapes.at[index,'stateabb'] = \
+        allcounties_df.at[index,'stateabb'] = \
             statefips_df[thestate]['abb'].to_list()[0]
-    return county_shapes
+    return allcounties_df
+
+def get_UScounty_by_fips(allcounties_df, fips_state, fips_county):
+    thecounty = ( (allcounties_df['fips_state'] == fips_state)
+                  & (allcounties_df['fips_county'] == fips_county) )
+    Nselected = len(allcounties_df[thecounty])
+    if (Nselected != 1):
+        print(f"***Error: For the requested FIPS = ({fips_state:d},{fips_county:d})")
+        print(f"          {Nselected:d} counties were found.")
+        exit(0)
+    county = allcounties_df[thecounty]
+    state = county['state'].to_list()[0]
+    stateabb = county['stateabb'].to_list()[0]
+    countylong = county['countylong'].to_list()[0]
+    return (county, state, stateabb, countylong)
+
+def get_UScounty_by_name(allcounties_df, stateabb, name_county):
+    # Check county name against both short and long to handle, e.g.,
+    # Virginia's "Richmond city" and "Richmond County"
+    thecounty = ( (allcounties_df['stateabb'].str.lower() == stateabb)
+                  & ( (allcounties_df['county'].str.lower() == name_county)
+                      | (allcounties_df['countylong'].str.lower() == name_county) ) )
+    Nselected = len(allcounties_df[thecounty])
+    if (Nselected != 1):
+        print(f"***Error: For {name_county:s}, {stateabb.upper(),s}")
+        print(f"          {Nselected:d} counties were found.")
+        exit(0)
+    county = allcounties_df[thecounty]
+    state = county['state'].to_list()[0]
+    countylong = county['countylong'].to_list()[0]
+    fips_state = county['fips_state'].to_list()[0]
+    fips_county = county['fips_county'].to_list()[0]
+
+    return (county, fips_state, fips_county, state, countylong)
 
 
 ############################################################
