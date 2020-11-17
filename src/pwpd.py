@@ -1,10 +1,12 @@
 # Use the pwpd.yml conda environment
 import sys
 import numpy as np
+import matplotlib.pyplot as plt
 import geopandas as gpd
 import pandas as pd
 import rasterio
 import rasterio.mask
+import pyproj
 import folium  # for making html maps with leaflet.js 
 
 ############################################################
@@ -212,21 +214,183 @@ def get_UScounty_by_name(allcounties_df, stateabb, name_county):
 #        Population-weighted Density Calculation           #
 ############################################################
 
-def get_pop_pwpd_pwlogpd(arr):
+def get_pop_pwpd_pwlogpd(img, nparr=False):
+    if (nparr == True):
+        arr=img
+    else:
+        arr = np.array(img)
+        arr[(arr == GHS_no_data_value)] = 0.0
     # total population is sum of population in each pixel
     totalpop = np.sum(arr)
     if (totalpop > 0):
         # calculate population-weighted population density
-        pwpd = np.sum(np.multiply(arr / GHS_Acell_in_kmsqd, arr) / totalpop)
+        pwd = np.sum(np.multiply(arr / GHS_Acell_in_kmsqd, arr) / totalpop)
         # calculate the pop-weighted log(popdensity)
         nonzero = (arr > 0)
         pwlogpd = np.sum( np.multiply( np.log(arr[nonzero]/GHS_Acell_in_kmsqd),
                                        arr[nonzero]) / totalpop )
     else:
-        pwpd = 0.0
-    return (totalpop, pwpd, pwlogpd)
+        pwd = 0.0
+    return (totalpop, pwd, pwlogpd)
 
 
+def GHS_pixels_to_coordinates(xpix, ypix, img_shape, img_transform,
+                              inverse=False):
+    """Transform pixel locations to coordinates in the
+    georeferenced space"""
+    #
+    #  <copied in from metrocounties.py>
+    #
+    Nrows = img_shape[0]
+    Ncols = img_shape[1]
+    if (inverse):
+        x = xpix; y = ypix
+        col = np.clip(1.0/img_transform[0]*(x-img_transform[2]),
+                      0.0, Ncols - 1)
+        row = np.clip(1.0/img_transform[4]*(y-img_transform[5]),
+                      0.0, Nrows - 1)
+        return (int(col), int(row))
+    xgeo = img_transform[2] + xpix*img_transform[0]
+    ygeo = img_transform[5] + ypix*img_transform[4]
+    # FIXME: There is an issue here about xpix = 1 or xpix = 1 etc...
+    # I should try to figure this out sometime, but can't now.
+    return (xgeo, ygeo)
+
+def transform_mollweide_to_latlon(x, y):
+    # Transform Mollweide (esri:54009) to LatLong coordinates (epsg:4226)
+    #  <copied in from metrocounties.py>
+    transformer = pyproj.Transformer.from_crs('esri:54009', 'epsg:4326')
+    lat, lon = transformer.transform(x, y)
+    return (lat, lon)
+
+def get_latlon(xpix, ypix, img_shape, img_transform):
+    (xgeo, ygeo) = GHS_pixels_to_coordinates(xpix, ypix,
+                                             img_shape, img_transform)
+    (lat, lon) = transform_mollweide_to_latlon(xgeo, ygeo)
+    return (lat, lon)
+
+def count_nonzero_neighbors(arr, r, c, rows, cols):
+    if ( (r==0) | (r==(rows-1))  | (c==0) | (c==(cols-1)) ):
+        print(f"***Warning: edge pixel at ({r:d},{c:d}) not checked, but deleted.")
+        return 0
+    rr = [r-1, r-1, r-1, r, r, r+1, r+1, r+1]
+    cc = [c-1, c, c+1, c-1, c+1, c-1, c, c+1]
+    count = 0
+    for rrr,ccc in zip(rr,cc):
+        if (arr[rrr,ccc] > 0):
+            count += 1
+    return count
+    
+def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
+    arr = np.array(img)
+    (rows,cols) = arr.shape
+    arr[(arr == GHS_no_data_value)] = 0.0
+    # make new copy of image for cleaning
+    cl_arr = arr.copy()
+    # and another one for for checking (will delete max each check)
+    ch_arr = arr.copy()    
+    Ncleaned = 0
+    Nchecked = 0
+    totalpop = []; pwd = []; pwlogpd = []; lat = []; lon = []
+    checked = []; zeros = []
+    while ( (Ncleaned < Nclean) & (Nchecked < Ncheck) ):
+        Nchecked += 1
+        # find max-valued pixel in checked image and zero out that pixel
+        (y,x) = np.unravel_index(np.argmax(ch_arr, axis=None), arr.shape)
+        ch_arr[y,x] = 0.0
+        # but check for neighbors in uncleaned image
+        nonzeropix = count_nonzero_neighbors(arr, y, x, rows, cols)
+        if ((8-nonzeropix) > maxNzero):
+            Ncleaned += 1
+            # zero out that pixel in the cleaned image
+            cl_arr[y,x] = 0.0
+            # get the latitude and longitude of the pixel
+            (la, lo) = get_latlon(x, y, img.shape, img_transform)
+            lat.append(la); lon.append(lo)
+            # calculate pwpd etc from cleaned image
+            (p, pw, pl) = get_pop_pwpd_pwlogpd(cl_arr, nparr=True)
+            totalpop.append(p); pwd.append(pw); pwlogpd.append(pl)
+            checked.append(Nchecked); zeros.append(8-nonzeropix)
+    # After cleaning, find the new max pixels
+    maxpix = []
+    for i in np.arange(Nmaxpix):
+        (y,x) = np.unravel_index(np.argmax(arr, axis=None), arr.shape)
+        arr[y,x] = 0.0
+        (la, lo) = get_latlon(x, y, img.shape, img_transform)
+        maxpix.append((la,lo))
+    return (checked, zeros, totalpop, pwd, pwlogpd, lat, lon, maxpix)
+
+def get_cleaned_pwpd_force(img, img_transform, Npixels, Nmaxpix):
+    arr = np.array(img)
+    arr[(arr == GHS_no_data_value)] = 0.0
+    # make new copy of image for cleaning    
+    for i in np.arange(Npixels):
+        (y,x) = np.unravel_index(np.argmax(arr, axis=None), arr.shape)
+        arr[y,x] = 0.0
+    # After cleaning, find the new max pixels
+    maxpix = []
+    for i in np.arange(Nmaxpix):
+        (y,x) = np.unravel_index(np.argmax(arr, axis=None), arr.shape)
+        arr[y,x] = 0.0
+        (la, lo) = get_latlon(x, y, img.shape, img_transform)
+        maxpix.append((la,lo))
+    return (maxpix, arr)
+
+############################################################
+#                   Sorting the Image                      #
+############################################################
+
+def flatten_and_sort_image(img):
+    arr = np.array(img)
+    (rows,cols) = arr.shape
+    grid = np.indices((rows,cols))
+    farr = arr.flatten()
+    farr_r = grid[0].flatten()
+    farr_c = grid[1].flatten()
+    sortind = np.flip(farr.argsort())
+    # return the flattened array, sorted from max to min,
+    # along with the corresponding row and column labels
+    return farr[sortind], farr_r[sortind], farr_c[sortind]
+
+def get_sorted_imarray(img, img_transform, sort_Ntop):
+    arr = np.array(img)
+    arr[(arr == GHS_no_data_value)] = 0.0
+    (rows,cols) = arr.shape
+    farr, farr_r, farr_c = flatten_and_sort_image(img)
+    sorted_df = pd.DataFrame({'pixpop': farr[0:sort_Ntop],
+                              'r': farr_r[0:sort_Ntop],
+                              'c': farr_c[0:sort_Ntop]})
+    sorted_df['NnonzeroN'] = 0
+    sorted_df['lat'] = 0.0
+    sorted_df['lon'] = 0.0
+    count = 0
+    for index, row in sorted_df.iterrows():
+        x = int(row.c)
+        y = int(row.r)
+        (la, lo) = get_latlon(x, y, img.shape, img_transform)
+        sorted_df.at[index,'lat'] = la
+        sorted_df.at[index,'lon'] = lo
+        nonzeropix = count_nonzero_neighbors(arr, y, x, rows, cols)
+        sorted_df.at[index,'NnonzeroN'] = nonzeropix
+        print(f"{count:d}   ({x:d},{y:d}) {row.pixpop:.1f} {nonzeropix:d} ({la:.3f},{lo:.3f})")
+        count += 1
+    return sorted_df
+
+def plot_sorted(sorted_df, outfile):
+    # First make a 10-point average of the NnonzeroN
+    sorted_df['NnonzeroN_avg'] = sorted_df['NnonzeroN'].rolling(10).mean()
+    # Then make plots of NnonzeroN_avg and pixpop
+    fig, (ax1,ax2) = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(6,8))
+    nonzero = sorted_df['NnonzeroN_avg'].to_numpy()
+    pixpop = sorted_df['pixpop'].to_numpy()
+    ax1.plot(nonzero)
+    ax1.set_ylabel("Nonzero neighbors")
+    ax1.set_ylim([0,9])
+    ax2.plot(pixpop)
+    ax2.set_ylabel("Pixel population")
+    ax2.set_xlabel("Pixel rank")
+    plt.tight_layout()
+    plt.savefig(outfile)
 
 ############################################################
 #                     Mapping Methods                      #

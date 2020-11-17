@@ -62,7 +62,7 @@ img, img_transform = pwpd.get_GHS_windowed_subimage(county_m)
 #=== Get population and population-weighted--population density
 arr = np.array(img)
 arr[(arr == pwpd.GHS_no_data_value)] = 0.0
-(pop, pwd, pwlogpd) = pwpd.get_pop_pwpd_pwlogpd(arr)
+(pop, pwd, pwlogpd) = pwpd.get_pop_pwpd_pwlogpd(arr, nparr=True)
 
 #=== Print result to user
 print("=" * 80)
