@@ -18,7 +18,7 @@ Calculation of PWD for a political region relies on a high resolution dataset of
   * 1km-scale resolution; World Mollweide coords
   * 9 arcsec resolution; Geographic (Lat/Lon) coords (EPSG:4326)
   * 30 arcsec resolution; Geographic (Lat/Lon) coords 
-* [Gridded Population of the World (GPWv4)](https://sedac.ciesin.columbia.edu/data/collection/gpw-v4l)
+* [Gridded Population of the World (GPWv4)](https://sedac.ciesin.columbia.edu/data/collection/gpw-v4)
   * 30-arcsec resolution; Geographic (Lat/Lon) coords
   * 2.5-arcmin resolution; Geographic (Lat/Lon) coords
   * 15-arcmin resolution; Geographic (Lat/Lon) coords
