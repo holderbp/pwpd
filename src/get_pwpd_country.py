@@ -7,7 +7,7 @@ outdir = "../output/"
 
 #=== Parameters for the GHS image
 GHS_epoch = '2015'
-GHS_lengthscale = '250m' # '1km' or '250m'
+GHS_lengthscale = '1km' # '1km' or '250m'
 
 #=== Parameters for cleaning the image
 cleanpwd = None # 'by_neighbors' or 'by_force' or None
@@ -18,7 +18,7 @@ clean_Nmaxpix = 100     # number of pixels to output in cleaned image
 
 #=== Parameters for getting sorted array of image
 getsorted = True
-sort_Ntop = 5000  # number of top pixels to return
+sort_Ntop = 10000  # number of top pixels to return
 
 #=== Accept three-letter country code from commandline input
 if (len(sys.argv) == 1):
@@ -68,12 +68,15 @@ print("=" * 80)
 if getsorted:
     # return a dataframe with the top sort_Ntop pixels
     #     [pixpop, Nnonzeroneighbors, lat, lon]
-    imgarr_sorted_df = pwpd.get_sorted_imarray(img, img_transform, sort_Ntop)
+    imgarr_sorted_df = pwpd.get_sorted_imarray(img, img_transform,
+                                               sort_Ntop, printout=False)
     # save the sorted data to csv
-    sort_outfile = outdir + countrycode + "_sorted-data.csv"
+    sort_outfile = outdir + countrycode \
+        + "_" + GHS_lengthscale +  "_sorted-data.csv"
     imgarr_sorted_df.to_csv(sort_outfile, index=False)
     # plot the Nnonzero and pixvalue
-    sort_plot_outfile = outdir + countrycode + "_plot-sorted.pdf"
+    sort_plot_outfile = outdir + countrycode \
+        + "_" + GHS_lengthscale + "_plot-sorted.pdf"
     pwpd.plot_sorted(imgarr_sorted_df, sort_plot_outfile)
     
 #=== Get cleaned PWD

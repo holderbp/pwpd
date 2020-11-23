@@ -220,15 +220,18 @@ def get_pop_pwpd_pwlogpd(img, nparr=False):
     else:
         arr = np.array(img)
         arr[(arr == GHS_no_data_value)] = 0.0
+    # First flatten the array and remove zero-valued elements
+    farr = arr.flatten()
+    selected = (farr > 0)
+    farr = farr[selected]
     # total population is sum of population in each pixel
-    totalpop = np.sum(arr)
+    totalpop = np.sum(farr)
     if (totalpop > 0):
         # calculate population-weighted population density
-        pwd = np.sum(np.multiply(arr / GHS_Acell_in_kmsqd, arr) / totalpop)
+        pwd = np.sum(np.multiply(farr / GHS_Acell_in_kmsqd, farr) / totalpop)
         # calculate the pop-weighted log(popdensity)
-        nonzero = (arr > 0)
-        pwlogpd = np.sum( np.multiply( np.log(arr[nonzero]/GHS_Acell_in_kmsqd),
-                                       arr[nonzero]) / totalpop )
+        pwlogpd = np.sum( np.multiply( np.log(farr/GHS_Acell_in_kmsqd),
+                                       farr) / totalpop )
     else:
         pwd = 0.0
     return (totalpop, pwd, pwlogpd)
@@ -341,18 +344,25 @@ def get_cleaned_pwpd_force(img, img_transform, Npixels, Nmaxpix):
 ############################################################
 
 def flatten_and_sort_image(img):
+    # First record the (row,col) values in arrays
     arr = np.array(img)
     (rows,cols) = arr.shape
     grid = np.indices((rows,cols))
     farr = arr.flatten()
     farr_r = grid[0].flatten()
     farr_c = grid[1].flatten()
+    # Then delete all nonzero values in the flattened array
+    selected = (farr > 0)
+    farr = farr[selected]
+    farr_r = farr_r[selected]
+    farr_c = farr_c[selected]
+    # Then sort the remaining values
     sortind = np.flip(farr.argsort())
     # return the flattened array, sorted from max to min,
     # along with the corresponding row and column labels
     return farr[sortind], farr_r[sortind], farr_c[sortind]
 
-def get_sorted_imarray(img, img_transform, sort_Ntop):
+def get_sorted_imarray(img, img_transform, sort_Ntop, printout=False):
     arr = np.array(img)
     arr[(arr == GHS_no_data_value)] = 0.0
     (rows,cols) = arr.shape
@@ -372,7 +382,8 @@ def get_sorted_imarray(img, img_transform, sort_Ntop):
         sorted_df.at[index,'lon'] = lo
         nonzeropix = count_nonzero_neighbors(arr, y, x, rows, cols)
         sorted_df.at[index,'NnonzeroN'] = nonzeropix
-        print(f"{count:d}   ({x:d},{y:d}) {row.pixpop:.1f} {nonzeropix:d} ({la:.3f},{lo:.3f})")
+        if printout:
+            print(f"{count:d}   ({x:d},{y:d}) {row.pixpop:.1f} {nonzeropix:d} ({la:.3f},{lo:.3f})")
         count += 1
     return sorted_df
 
