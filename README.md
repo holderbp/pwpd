@@ -16,13 +16,13 @@ Calculation of PWD for a political region relies on a high resolution dataset of
 * [Global Human Settlement (GHS-POP)](https://ghsl.jrc.ec.europa.eu/ghs_pop2019.php)
   * 250m-scale resolution; World Mollweide (equal-area) Coordinates (EPSG:54009)
   * 1km-scale resolution; World Mollweide
-  * 9 arcsec resolution; World Geodetic System datum Geographic (Lat/Lon) Coordinates (WGS84; EPSG:4326)
-  * 30 arcsec resolution; WGS84 coords 
+  * 9 arcsec resolution; World Geodetic System Datum Geographic (Lat/Lon) Coordinates (WGS84; EPSG:4326)
+  * 30 arcsec resolution; WGS84  
 * [Gridded Population of the World (GPWv4)](https://sedac.ciesin.columbia.edu/data/collection/gpw-v4)
-  * 30-arcsec resolution; WGS84 coords
-  * 2.5-arcmin resolution; WGS84 coords
-  * 15-arcmin resolution; WGS84 coords
-  * 1-degree resolution; WGS84 coords
+  * 30-arcsec resolution; WGS84 
+  * 2.5-arcmin resolution; WGS84 
+  * 15-arcmin resolution; WGS84 
+  * 1-degree resolution; WGS84 
 
 which should be placed in the `data/ghs` and `data/gpw` sub-directories. Specifically, the code currently assumes the existence the following GeoTiff images:
 
@@ -46,8 +46,8 @@ The choice of image type and resolution is set by the helper function `set_popim
 
 #### Shapefiles (countries provided; US counties must be downloaded separately)
 
-To calculate PWD for a particular political region, the boundaries of that region must be provided using a [https://www.esri.com/library/whitepapers/pdfs/shapefile.pdf](ESRI Shapefile) (read with Python's [https://geopandas.org](`geopandas`) package).
+To calculate PWD for a particular political region, the boundaries of that region must be provided using a [ESRI Shapefile](https://www.esri.com/library/whitepapers/pdfs/shapefile.pdf) (read with Python's [`geopandas`](https://geopandas.org) package).
 
 Shape files for countries of the world are provided here in the `data/shapefiles/world` directory.  These are used, e.g., by the `src/get_pwpd_country.py` helper function, which takes a single commandline argument: the three-letter country code (e.g., USA, AFG, FRA). World shapefiles were taken from the public domain [_Natural Earth Vector_ dataset](https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-countries-2/) (also available on [Github](https://github.com/nvkelso/natural-earth-vector)), and use the WGS84 coordinate system (EPSG:4326).
 
-Shape files for US counties should be downloaded from the [US Census](https://www2.census.gov/geo/tiger/TIGER2019/COUNTY/) (79MB) and the unzipped directory `tl_2019_us_county` should be placed in the `data/shapefiles/UScounties` directory.  These shapefiles are in the (North American Datum) Geographic (Lat/Lon) coordinate system (NAD83; EPSG:4269).
+Shape files for US counties should be downloaded from the [US Census](https://www2.census.gov/geo/tiger/TIGER2019/COUNTY/) (79MB) and the unzipped directory `tl_2019_us_county` should be placed in the `data/shapefiles/UScounties` directory.  These shapefiles use the North American Datum Geographic (Lat/Lon) coordinate system (NAD83; EPSG:4269).
