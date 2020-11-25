@@ -11,7 +11,7 @@ For a region divided into pixels of area <i>a<sub>j</sub></i> and population <i>
 
 #### Population Raster Images (must be downloaded separately)
 
-Calculation of PWD for a political region relies on a high resolution dataset of population.  The code here utilizes one of two [GeoTiff](https://earthdata.nasa.gov/esdis/eso/standards-and-references/geotiff) raster datasets (read with Python's [`rasterio`](https://rasterio.readthedocs.io/en/latest/) package), with the following resolution options and coordinate system options:
+Calculation of PWD for a political region relies on a high resolution dataset of population.  The code here utilizes one of two [GeoTiff](https://earthdata.nasa.gov/esdis/eso/standards-and-references/geotiff) raster datasets (read with Python's [`rasterio`](https://rasterio.readthedocs.io/en/latest/) package), with the following resolution and coordinate system options:
 
 * [Global Human Settlement (GHS-POP)](https://ghsl.jrc.ec.europa.eu/ghs_pop2019.php)
   * 250m-scale resolution; World Mollweide (equal-area) Coordinates (EPSG:54009)
@@ -29,9 +29,9 @@ which should be placed in the `data/ghs` and `data/gpw` sub-directories. Specifi
   * [1km scale GHS-POP (2015)](https://cidportal.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_MT_GLOBE_R2019A/GHS_POP_E2015_GLOBE_R2019A_54009_1K/V1-0/GHS_POP_E2015_GLOBE_R2019A_54009_1K_V1_0.zip) (138MB)
   * [250m scale GHS-POP (2015)](https://cidportal.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_MT_GLOBE_R2019A/GHS_POP_E2015_GLOBE_R2019A_54009_250/V1-0/GHS_POP_E2015_GLOBE_R2019A_54009_250_V1_0.zip) (529MB)
 
-  * [30as GPW UN WPP-adjusted Population Count (2020)](https://sedac.ciesin.columbia.edu/data/set/gpw-v4-population-count-adjusted-to-2015-unwpp-country-totals-rev11/data-download) (405MB)
+  * [30as GPWv4 UN WPP-adjusted Population Count (2020)](https://sedac.ciesin.columbia.edu/data/set/gpw-v4-population-count-adjusted-to-2015-unwpp-country-totals-rev11/data-download) (405MB)
 
-  * [30as GPW UN WPP-adjusted Population Density (2020)](https://sedac.ciesin.columbia.edu/data/set/gpw-v4-population-density-adjusted-to-2015-unwpp-country-totals-rev11/data-download) (347MB)
+  * [30as GPWv4 UN WPP-adjusted Population Density (2020)](https://sedac.ciesin.columbia.edu/data/set/gpw-v4-population-density-adjusted-to-2015-unwpp-country-totals-rev11/data-download) (347MB)
 
 in the following directories, respectively:
 
@@ -40,7 +40,7 @@ in the following directories, respectively:
  * `data/gpw/`
  * `data/gpw/`
 
-Lower resolutions of GHS-POP have not yet been implemented and would require slight adjustment of the code due to the different coordinate system; lower resolutions of GPW should work but have not been tested.
+Lower resolutions of GHS-POP have not yet been implemented and would require slight adjustment of the code due to the different coordinate system; lower resolutions of GPWv4 should work but have not been tested.
 
 The choice of image type and resolution is set by the helper function `set_popimage_pars`.
 

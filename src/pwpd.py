@@ -10,49 +10,147 @@ import pyproj
 import folium  # for making html maps with leaflet.js 
 
 ############################################################
-#             GHS-POP parameters and methods               #
+#         Population image parameters and methods          #
 ############################################################
+popimage_type = None
 #
+# === GHS-POP images downloaded from here:
 #
-# GHS-POP parameters
+#      https://ghsl.jrc.ec.europa.eu/ghs_pop2019.php
+#
+#  Read with rasterio
+#
+#      import rasterio
+#      src = rasterio.open("../data/ghs/.../GHS_POP_E2015_...tif")
+#
+#  Coordinate system is World Mollweide (equal areas):
+#
+#        src.crs = CRS.from_wkt('PROJCS["World_Mollweide",
+#                  GEOGCS["WGS 84",DATUM["WGS_1984",
+#                  SPHEROID["WGS 84",6378137,298.257223563,
+#                  AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],
+#                  PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]],
+#                  PROJECTION["Mollweide"],PARAMETER["central_meridian",0],
+#                  PARAMETER["false_easting",0],PARAMETER["false_northing",0],
+#                  UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],
+#                  AXIS["Northing",NORTH]]')
+#        src.read().shape = (1, 18000, 36082)
+#        src.nodatavals = (-200.0,)
+#        src.indexes = (1,)
+#        src.dtypes = ('float64',)
+#        src.transform = Affine(1000.0, 0.0, -18041000.0,
+#                               0.0, -1000.0, 9000000.0)
+#
+# === GHS-POP parameters
 #
 GHS_dir = "../data/ghs/"
-GHS_file_string1 = "GHS_POP_E2015_GLOBE_R2019A_54009_"
-GHS_file_string2 = "_V1_0" 
+GHS_file_string1 = "GHS_POP"
+GHS_file_string2 = "GLOBE_R2019A_54009"
+GHS_file_string3 = "V1_0" 
 GHS_filepath = None
-GHS_no_data_value = -200
-GHS_lengthscale = None
+GHS_length_string = None
+GHS_epoch_string = None
 GHS_Acell_in_kmsqd = None
-# code for the Mollweide coordinate system
-eps_mollweide = 'esri:54009'
-    
-def set_GHS_lengthscale(lengthstring):
-    """Set the lengthscale (250m or 1km) for the GHS data set"""
-    global GHS_lengthscale, GHS_Acell_in_kmsqd, GHS_filepath
-    # set lengthscale string for file manipulation
-    if (lengthstring == '250m'):
-        GHS_lengthscale = '250'
-    elif (lengthstring == '1km'):
-        GHS_lengthscale = '1K'
-    else:
-        print("***Error: GHS lengthscale", lengthstring, "not recognized.")
-        exit(0)
-    # set lengthscale value and pixel area
-    if (GHS_lengthscale == '250'):
-        GHS_resolution_in_km = 0.250
-    elif (GHS_lengthscale == '1K'):
-        GHS_resolution_in_km = 1.0
-    GHS_Acell_in_kmsqd = GHS_resolution_in_km**2
-    # set GHS image filepath
-    GHS_filepath =  GHS_dir + GHS_file_string1 \
-        + GHS_lengthscale + GHS_file_string2 + "/" + GHS_file_string1 \
-        + GHS_lengthscale + GHS_file_string2 +  ".tif"
+GHS_coordinates = 'esri:54009'   # Mollweide
+#
+# === GPW (Gridded Population of the World) images downloaded from here:
+#
+#    https://sedac.ciesin.columbia.edu/data/collection/gpw-v4
+#
+# Open with rasterio as with GHS-POP
+#
+# Coordinate system is WSG84 Geographic (Lat/Lon).  E.g., for 30 as resolution tif:
+#
+#        src.crs = CRS.from_epsg(4326)
+#        src.read().shape = (1, 21600, 43200)
+#        src.nodatavals = (-3.4028230607370965e+38,)
+#        src.indexes = (1,)
+#        src.dtypes = ('float32',)
+#        src.transform = Affine(0.00833333333333333, 0.0, -180.0,
+#                               0.0, -0.00833333333333333, 89.99999999999991)
+#
+# === GPW parameters  
+#
+GPW_length_string = None
+GPW_epoch_string = None
+GPW_dir = "../data/gpw/"
+GPW_file_string1 = "gpw_v4"
+#GPW_file_string2 = "rev11"   # not UN-adjusted pops
+GPW_file_string2 = "adjusted_to_2015_unwpp_country_totals_rev11"
+GPW_popcount_filepath = None
+GPW_popdensity_filepath = None
+GPW_coordinates = 'epsg:4326'   # WSG84 Lat/Lon
 
-def get_GHS_windowed_subimage(window_df):
+def set_popimage_pars(popimtype, epoch, lengthstring):
+    """Set parameters for the population raster image"""
+    global popimage_type
+    global GHS_length_string, GHS_epoch_string, GHS_Acell_in_kmsqd
+    global GHS_filepath
+    global GPW_length_string, GPW_epoch_string
+    global GPW_popcount_filepath, GPW_popdensity_filepath
+    # set population image type
+    popimage_type = popimtype
+    # and it's associated parameters
+    if (popimtype == 'GHS'):
+        # set epoch
+        if (epoch == '2015'):
+            GHS_epoch_string = 'E2015'
+        else:
+            print("***Error: GHS epoch", epoch, "not found.")
+            exit(0)
+        # set lengthscale string for file manipulation
+        if (lengthstring == '250m'):
+            GHS_length_string = '250'
+        elif (lengthstring == '1km'):
+            GHS_length_string = '1K'
+        else:
+            print("***Error: GHS lengthscale", lengthstring, "not recognized.")
+            exit(0)
+        # set lengthscale value and pixel area
+        if (GHS_length_string == '250'):
+            GHS_resolution_in_km = 0.250
+        elif (GHS_length_string == '1K'):
+            GHS_resolution_in_km = 1.0
+        GHS_Acell_in_kmsqd = GHS_resolution_in_km**2
+        # set GHS image filepath
+        #   e.g., "GHS_POP_E2015_GLOBE_R2019A_54009_1K_V1_0"
+        filestring = GHS_file_string1 \
+            + "_" + GHS_epoch_string + "_" \
+            + GHS_file_string2 \
+            + "_" + GHS_length_string + "_" \
+            + GHS_file_string3
+        GHS_filepath =  GHS_dir + filestring + "/" + filestring + ".tif"
+    elif (popimtype == 'GPW'):
+        # set epoch
+        if (epoch == '2020'):
+            GPW_epoch_string = '2020'
+        else:
+            print("***Error: GPW epoch", epoch, "not found.")
+            exit(0)
+        # set lengthscale string for file manipulation
+        if (lengthstring == '30as'):
+            GPW_length_string = '30_sec'
+        else:
+            print("***Error: GPW lengthscale", lengthstring, "not recognized.")
+            exit(0)
+        # set GPW image filepath  
+        GPW_popcount_filepath =  GPW_dir + GPW_file_string1 \
+            + "_population_count_" + GPW_file_string2 \
+            + "_" + GPW_epoch_string \
+            + "_" + GPW_length_string + ".tif"
+        GPW_popdensity_filepath =  GPW_dir + GPW_file_string1 \
+            + "_population_density_" + GPW_file_string2 \
+            + "_" + GPW_epoch_string \
+            + "_" + GPW_length_string + ".tif"
+    else:
+        print("***Error: Population image", popimtype, "not recognized.")
+        exit(0)
+
+def get_windowed_subimage(window_df, filepath):
     # get polygon shape(s) from the geopandas dataframe
     windowshapes = window_df["geometry"]
     # mask GHS-POP image with entire set of shapes
-    with rasterio.open(GHS_filepath) as src:
+    with rasterio.open(filepath) as src:
         img, img_transform = \
             rasterio.mask.mask(src, windowshapes, crop=True)
         img_profile = src.profile
@@ -66,9 +164,38 @@ def get_GHS_windowed_subimage(window_df):
 
 
 ############################################################
-#    Political region shapefiles: data and methods         #
+#  Political region shapefiles and areas: data and methods #
 ############################################################
 
+#
+#=== Areas for countries of the world.
+#
+#      Used this database:
+#
+#         https://data.worldbank.org/indicator/AG.SRF.TOTL.K2
+#
+#      with relevant columns:
+#
+#          ["Country Name", "Country Code", ... "2015"]
+#
+#      where "country code" is threelett code and "2015 is the area of country in 2015.
+#      below I translate these to the same labels as the country codes file:
+#      ['name', 'threelett', 'area_kmsqd_2015']
+#
+areas_filepath = "../data/area/API_AG.SRF.TOTL.K2_DS2_en_csv_v2_1346843.csv"
+areas_collist = ["Country Name", "Country Code", "2015"]
+areas_newcolnames = ["name", "threelett", "area_kmsqd_2015"]
+#
+#      There are lots of places listed in the country codes file that do not
+#      have an area in the world bank database (most of these are small islands), and
+#      they are excluded using the list below. (Taiwan doesn't appear in the world
+#      bank list either, so I add it in by hand).
+areas_places_w_no_area = ['AIA', 'ALD', 'ATA', 'ATC', 'ATF', 'BLM', 'COK',
+                          'CYN', 'FLK', 'GGY', 'HMD', 'IOA', 'IOT', 'JEY',
+                          'KAS', 'KOS', 'MSR', 'NFK', 'NIU', 'PCN', 'PSX',
+                          'SAH', 'SDS', 'SGS', 'SHN', 'SOL', 'SPM', 'VAT',
+                          'WLF']
+areas_taiwan = {'name': 'Taiwan', 'threelett': 'TWN', 'area_kmsqd_2015': 36193}
 
 #=== Shapefiles for the countries of the world.
 #
@@ -76,8 +203,15 @@ def get_GHS_windowed_subimage(window_df):
 #
 #     https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-countries-2/
 #
-# columns =
-#  Index(['featurecla', 'scalerank', 'LABELRANK', 'SOVEREIGNT', 'SOV_A3',
+#   Load with geopandas
+#
+#     import geopandas as gpd
+#     infile = ../data/shapefiles/world/ne_50m_admin_0_countries/ne_50m_admin_0_countries.sh
+#     df = gpd.read_file(infile)
+#
+#   Columns in dataframe:
+#        df.columns =
+#    Index(['featurecla', 'scalerank', 'LABELRANK', 'SOVEREIGNT', 'SOV_A3',
 #    'ADM0_DIF', 'LEVEL', 'TYPE', 'ADMIN', 'ADM0_A3', 'GEOU_DIF', 'GEOUNIT',
 #    'GU_A3', 'SU_DIF', 'SUBUNIT', 'SU_A3', 'BRK_DIFF', 'NAME', 'NAME_LONG',
 #    'BRK_A3', 'BRK_NAME', 'BRK_GROUP', 'ABBREV', 'POSTAL', 'FORMAL_EN',
@@ -97,6 +231,21 @@ def get_GHS_windowed_subimage(window_df):
 #
 #  The three-letter country code is 'ADM0_A3' and name is 'SOVEREIGNT'
 #
+#  Coordinate system is geographic (lat/lon):
+#
+#       df.crs =
+#             <Geographic 2D CRS: EPSG:4326>
+#             Name: WGS 84
+#             Axis Info [ellipsoidal]:
+#             - Lat[north]: Geodetic latitude (degree)
+#             - Lon[east]: Geodetic longitude (degree)
+#             Area of Use:
+#             - name: World
+#             - bounds: (-180.0, -90.0, 180.0, 90.0)
+#             Datum: World Geodetic System 1984
+#             - Ellipsoid: WGS 84
+#             - Prime Meridian: Greenwich
+#
 world_shape_dir = "../data/shapefiles/world/ne_50m_admin_0_countries/"
 world_shape_filepath = world_shape_dir + "ne_50m_admin_0_countries.shp"
 # these countries have no entry
@@ -110,10 +259,52 @@ def load_world_shapefiles():
     allcountries_df.columns = ['name', 'threelett', 'geometry']
     return allcountries_df
 
+def create_dataframe_with_areas(allcountries_df):
+    # load the areas dataframe, keep only three columns and rename, add Taiwan
+    areas_df = pd.read_csv(areas_filepath)
+    areas_df = areas_df[areas_collist]
+    areas_df.columns = areas_newcolnames
+    areas_df = areas_df.append(areas_taiwan, ignore_index=True)
+    # make new dataframe for putting the pwpd etc (don't keep 'geometry')
+    pwpd_countries = allcountries_df[['name', 'threelett']].copy()
+    # put areas into this dataframe
+    pwpd_countries['area'] = 0.0
+    for index, row in pwpd_countries.iterrows():
+        code = row['threelett']
+        if (code not in areas_places_w_no_area):
+            try:
+                area = areas_df[areas_df['threelett'] == code]['area_kmsqd_2015'].to_numpy()[0]
+                pwpd_countries.at[index, 'area'] = area
+            except IndexError:
+                print("***Error: Couldn't find area for", code)
+    # make columns for other values
+    pwpd_countries['pop'] = 0.0
+    pwpd_countries['pwpd'] = 0.0
+    pwpd_countries['pwlogpd'] = 0.0
+    pwpd_countries['popdens'] = 0.0
+    pwpd_countries['gamma'] = 0.0
+    return pwpd_countries
+
 def get_country_by_countrycode(allcountries_df, countrycode):
     country = allcountries_df[allcountries_df['threelett'] == countrycode]
-    countryname = country['name'].to_list()[0]
+    try:
+        countryname = country['name'].to_list()[0]
+    except IndexError:
+        print("***Error: Country with three-letter country code",
+              countrycode, "not found.")
+        exit(0)
     return (country, countryname)
+
+def transform_shapefile(country):
+    if (popimage_type == 'GHS'):
+        # transform to Mollweide
+        return country.to_crs(crs=GHS_coordinates)
+    elif (popimage_type == 'GPW'):
+        # transform to WGS84
+        return country.to_crs(crs=GPW_coordinates)        
+    else:
+        print("***Error: Population image coordinates unknown/undefined.")
+        exit(0)
 
 #=== Shapefiles for the US Counties
 #
@@ -128,6 +319,21 @@ def get_country_by_countrycode(allcountries_df, countrycode):
 #
 #   where 'NAME' is the county name (e.g., Saratoga), and
 #   'NAMELSAD' is the full county (e.g., Saratoga County).
+#
+#  Coordinate system is geographic 2D (lat/lon):
+#
+#       df.crs =
+#             <Geographic 2D CRS: EPSG:4269>
+#             Name: NAD83
+#             Axis Info [ellipsoidal]:
+#             - Lat[north]: Geodetic latitude (degree)
+#             - Lon[east]: Geodetic longitude (degree)
+#             Area of Use:
+#             - name: North America - NAD83
+#             - bounds: (167.65, 14.92, -47.74, 86.46)
+#             Datum: North American Datum 1983
+#             - Ellipsoid: GRS 1980
+#             - Prime Meridian: Greenwich
 #
 UScounty_shape_dir = "../data/shapefiles/UScounties/"
 UScounty_shape_filepath = UScounty_shape_dir + "tl_2019_us_county/tl_2019_us_county.shp"
@@ -147,6 +353,8 @@ UScounty_shape_filepath = UScounty_shape_dir + "tl_2019_us_county/tl_2019_us_cou
 #
 #       [American Samoa (AS), Guam (GU), North. Mar. Isl (MP),
 #        Puerto Rico (PR), Virgin Islands (VI)]
+#
+#  
 #
 USstate_fips_filepath = UScounty_shape_dir + "US-state_fips-codes.csv"
 
@@ -214,12 +422,44 @@ def get_UScounty_by_name(allcounties_df, stateabb, name_county):
 #        Population-weighted Density Calculation           #
 ############################################################
 
-def get_pop_pwpd_pwlogpd(img, nparr=False):
+def get_pop_pwpd_pwlogpd(window_df):
+    # get windowed subimage(s) of population/popdensity rasters
+    if (popimage_type == 'GHS'):
+        popimg, popimg_transform = \
+            get_windowed_subimage(window_df, GHS_filepath)
+        totalpop, pwd, pwlogpd = \
+            get_pwpd_from_count(popimg)
+    elif (popimage_type == 'GPW'):
+        popimg, popimg_transform = \
+            get_windowed_subimage(window_df, GPW_popcount_filepath)
+        pdimg, pdimg_transform = \
+            get_windowed_subimage(window_df, GPW_popdensity_filepath)
+        totalpop, pwd, pwlogpd = get_pwpd_from_count_and_density(popimg, pdimg)
+    else:
+        print("***Error: Population image type unknown/unset")
+        exit(0)
+    return (totalpop, pwd, pwlogpd, np.array(popimg).shape)
+
+def get_gamma(pop, area, pwpd, popimage_type, popimage_length_string):
+    """Calculate the so-called population sparsity"""
+    # Get pwpd pixel area in km^2
+    if ((popimage_type == 'GHS') & (popimage_length_string == '1km')):
+        areacsale = 1000.0**2
+    elif ((popimage_type == 'GHS') & (popimage_length_string == '250m')):
+        areascale = 0.25**2
+    elif ((popimage_type == 'GPW') & (popimage_length_string == '30as')):
+        # FIXME: this should really be set based on 30as**2 at avg latitude
+        areascale = 1000.0**2
+    return ( ( np.log(pwpd) - np.log(pop/area) ) \
+             / (np.log(area) - np.log(areascale)) )
+
+def get_pwpd_from_count(img, nparr=False):
     if (nparr == True):
         arr=img
     else:
         arr = np.array(img)
-        arr[(arr == GHS_no_data_value)] = 0.0
+        # set (negative) no data values to zero
+        arr[arr < 0.0] = 0.0
     # First flatten the array and remove zero-valued elements
     farr = arr.flatten()
     selected = (farr > 0)
@@ -227,15 +467,48 @@ def get_pop_pwpd_pwlogpd(img, nparr=False):
     # total population is sum of population in each pixel
     totalpop = np.sum(farr)
     if (totalpop > 0):
-        # calculate population-weighted population density
-        pwd = np.sum(np.multiply(farr / GHS_Acell_in_kmsqd, farr) / totalpop)
-        # calculate the pop-weighted log(popdensity)
-        pwlogpd = np.sum( np.multiply( np.log(farr/GHS_Acell_in_kmsqd),
-                                       farr) / totalpop )
+        if (popimage_type == 'GHS'):
+            # calculate population-weighted population density
+            pwd = np.sum(np.multiply(farr / GHS_Acell_in_kmsqd, farr)) / totalpop
+            # calculate the pop-weighted log(popdensity)
+            pwlogpd = \
+                np.sum( np.multiply( np.log(farr/GHS_Acell_in_kmsqd), farr)) \
+                / totalpop 
+        elif (popimage_type == 'GPW'):
+            print("***Error: GPW not yet set up to measure areas...")
+            exit(0)
     else:
         pwd = 0.0
+        pwlogpd = 0.0
     return (totalpop, pwd, pwlogpd)
 
+def get_pwpd_from_count_and_density(pcimg, pdimg):
+    if (popimage_type == 'GHS'):
+        print("***Error: GHS has no population density image...")
+        exit(0)
+    pcarr = np.array(pcimg)
+    pdarr = np.array(pdimg)
+    # Set (negative) no data values to zero
+    pcarr[pcarr < 0.0] = 0.0
+    # Flatten the arrays and remove zero-pop elements
+    fpcarr = pcarr.flatten()
+    fpdarr = pdarr.flatten()
+    selected = (fpcarr > 0)
+    fpcarr = fpcarr[selected]
+    fpdarr = fpdarr[selected]
+    # total population is sum of population in each pixel
+    totalpop = np.sum(fpcarr)
+    if (totalpop > 0):
+        # calculate population-weighted population density
+        pwd = np.sum(np.multiply(fpdarr, fpcarr)) / totalpop
+        # calculate the pop-weighted log(popdensity)
+        pwlogpd = \
+            np.sum( np.multiply( np.log(fpdarr), fpcarr) ) \
+            / totalpop
+    else:
+        pwd = 0.0
+        pwlogpd = 0.0
+    return (totalpop, pwd, pwlogpd)
 
 def GHS_pixels_to_coordinates(xpix, ypix, img_shape, img_transform,
                               inverse=False):
@@ -260,9 +533,16 @@ def GHS_pixels_to_coordinates(xpix, ypix, img_shape, img_transform,
     return (xgeo, ygeo)
 
 def transform_mollweide_to_latlon(x, y):
-    # Transform Mollweide (esri:54009) to LatLong coordinates (epsg:4226)
+    # Transform Mollweide (esri:54009) to LatLong coordinates (epsg:4326)
     #  <copied in from metrocounties.py>
     transformer = pyproj.Transformer.from_crs('esri:54009', 'epsg:4326')
+    lat, lon = transformer.transform(x, y)
+    return (lat, lon)
+
+def transform_NAD83_to_WGS84(x, y):
+    # Transform between the two Geographic (Lat/Lon) Coordinate systems:
+    #      NAD83 (epsg:4269) to WSG84 (epsg:4326)
+    transformer = pyproj.Transformer.from_crs('epsg:4269', 'epsg:4326')
     lat, lon = transformer.transform(x, y)
     return (lat, lon)
 
@@ -311,7 +591,7 @@ def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
             (la, lo) = get_latlon(x, y, img.shape, img_transform)
             lat.append(la); lon.append(lo)
             # calculate pwpd etc from cleaned image
-            (p, pw, pl) = get_pop_pwpd_pwlogpd(cl_arr, nparr=True)
+            (p, pw, pl) = get_pwpd_from_count(cl_arr, nparr=True)
             totalpop.append(p); pwd.append(pw); pwlogpd.append(pl)
             checked.append(Nchecked); zeros.append(8-nonzeropix)
     # After cleaning, find the new max pixels
@@ -362,9 +642,16 @@ def flatten_and_sort_image(img):
     # along with the corresponding row and column labels
     return farr[sortind], farr_r[sortind], farr_c[sortind]
 
-def get_sorted_imarray(img, img_transform, sort_Ntop, printout=False):
+def get_sorted_imarray(window_df, sort_Ntop, printout=True):
+    # get windowed subimage
+    if (popimage_type == 'GHS'):
+        img, img_transform = \
+            get_windowed_subimage(window_df, GHS_filepath)
+    elif (popimage_type == 'GPW'):
+        print("***Error: Not currently set up to do sort on GPW")
+        exit(0)
     arr = np.array(img)
-    arr[(arr == GHS_no_data_value)] = 0.0
+    arr[arr > 0] = 0.0
     (rows,cols) = arr.shape
     farr, farr_r, farr_c = flatten_and_sort_image(img)
     sorted_df = pd.DataFrame({'pixpop': farr[0:sort_Ntop],
