@@ -11,7 +11,7 @@ For a region divided into pixels of area <i>a<sub>j</sub></i> and population <i>
 
 #### Population Raster Images (must be downloaded separately)
 
-Calculation of PWD for a political region relies on a high resolution dataset of population.  The code here utilizes one of two raster datasets, with the following resolution options and coordinate system options:
+Calculation of PWD for a political region relies on a high resolution dataset of population.  The code here utilizes one of two [GeoTiff](https://earthdata.nasa.gov/esdis/eso/standards-and-references/geotiff) raster datasets (read with Python's [`rasterio`](https://rasterio.readthedocs.io/en/latest/) package), with the following resolution options and coordinate system options:
 
 * [Global Human Settlement (GHS-POP)](https://ghsl.jrc.ec.europa.eu/ghs_pop2019.php)
   * 250m-scale resolution; World Mollweide (equal-area) Coordinates (EPSG:54009)
