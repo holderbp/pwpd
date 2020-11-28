@@ -5,12 +5,16 @@ import pwpd
 
 
 #=== Parameters for the population image
-#popimage_type = 'GHS'   # 'GHS', 'GPW'
-#popimage_epoch = '2015'  # '2015', '2020'
-#popimage_lengthscale = '1km' # '1km', '250m', '30as'
-popimage_type = 'GPW'   # 'GHS', 'GPW'
-popimage_epoch = '2020'  # '2015', '2020'
-popimage_lengthscale = '30as' # '1km', '250m', '30as'
+#--- possible types are 'GHS' and 'GPW'
+#popimage_type = 'GHS' 
+popimage_type = 'GPW'  
+#--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
+popimage_epoch = '2015'  
+#---  possible lengthscales are:
+#      GHS: '250m', '1km'
+#      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
+#popimage_lengthscale = '1km'
+popimage_lengthscale = '30as'
 
 #=== Output
 outdir = "../output/"

@@ -5,26 +5,47 @@ import pwpd
 
 outdir = "../output/"
 
-#=== Parameters for the population image
-#popimage_type = 'GHS'   # 'GHS', 'GPW'
-#popimage_epoch = '2015'  # '2015', '2020'
-#popimage_lengthscale = '1km' # '1km', '250m', '30as'
-popimage_type = 'GPW'   # 'GHS', 'GPW'
-popimage_epoch = '2020'  # '2015', '2020'
-popimage_lengthscale = '30as' # '1km', '250m', '30as'
+#===========================================
+#=== Parameters for the population image ===
+#===========================================
+#
+#--- possible types are 'GHS' and 'GPW'
+popimage_type = 'GHS' 
+#popimage_type = 'GPW'  
+#--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
+popimage_epoch = '2015'  
+#--- possible lengthscales are:
+#      GHS: '250m', '1km'
+#      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
+popimage_lengthscale = '1km'
+#popimage_lengthscale = '30as'
 
-#=== Parameters for cleaning the image
-cleanpwd = None # 'by_neighbors' or 'by_force' or None
-clean_Npixels = 500    # number of pixels to remove
-clean_Ncheck = 500     # max number of pixels to check for cleaning
-clean_maxNzero = 4      # number of zeros to tolerate before cleaning
-clean_Nmaxpix = 100     # number of pixels to output in cleaned image
-
-#=== Parameters for getting sorted array of image
-getsorted = False
+#================================================================
+#=== Parameters for getting sorted array of image  (GHS only) ===
+#================================================================
+#
+getsorted = True
 sort_Ntop = 10000  # number of top pixels to return
 
-#=== Accept three-letter country code from commandline input
+#=====================================================
+#=== Parameters for cleaning the image  (GHS only) ===
+#=====================================================
+#
+#--- Type of cleaning: 'by_neighbors' or 'by_force' or None
+cleanpwd = 'by_neighbors' 
+#--- Maximum number of pixels to check for cleaning
+clean_Ncheck = 500     
+#--- Maximum number of pixels to "clean" (remove/zero-out)
+clean_Npixels = 500    
+#--- Number of neighboring zeros to tolerate before cleaning pixel
+clean_maxNzero = 4     
+#--- Number of max-valued pixels to output to user in cleaned image
+clean_Nmaxpix = 100    
+
+#=============================================================
+#=== Commandline input:  Accept three-letter country code  ===
+#=============================================================
+#
 if (len(sys.argv) == 1):
     print("***Error: Three-letter country code is a required argument.")
     exit(0)
@@ -34,6 +55,10 @@ else:
     print("***Error: Unrecognized commandline option")
     exit(0)
 
+#=================
+#=== Main code ===
+#=================
+#
 #=== Set the population image parameters
 pwpd.set_popimage_pars(popimage_type, popimage_epoch, popimage_lengthscale)
 
@@ -44,14 +69,15 @@ allcountries_df = pwpd.load_world_shapefiles()
 (country, countryname) = \
     pwpd.get_country_by_countrycode(allcountries_df, countrycode)
 
-#=== Transform shapefile to coordinate system of population image
+#=== Transform shapefile to coordinate system of the population image
 country_t = pwpd.transform_shapefile(country)
 
-#=== Get population and population-weighted--population density
+#=== Get population, population-weighted population density
+#    and the population-weighted log(pop density)
 (pop_orig, pwd_orig, pwlogpd_orig, imgshape) = \
     pwpd.get_pop_pwpd_pwlogpd(country_t)
 
-#=== Print result to user
+#=== Display result for user
 print("=" * 80)
 print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
       + popimage_epoch + " " + popimage_type 
@@ -63,33 +89,72 @@ print("The country of " + countryname + " (" + countrycode
       + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}")
 print("=" * 80)
 
-#=== Get sorted array
-if ( (getsorted) & (popimage_type == 'GHS') ):
-    # return a dataframe with the top sort_Ntop pixels
-    #     [pixpop, Nnonzeroneighbors, lat, lon]
+
+
+#=======================================================
+#===   Sorting the GHS-POP image to view max pixels  ===
+#===                                                 ===
+#===                   (GHS only)                    ===
+#===                                                 ===
+#=======================================================
+if ( getsorted & (popimage_type == 'GHS') ):
+    #=== Return a dataframe with the top sort_Ntop pixels
+    #
+    #  df.columns = [pixpop, Nnonzeroneighbors, lat, lon]
+    #
+    print(f"Getting a sorted list of top {sort_Ntop:d} pixels in the GHS-POP image.")
+    print(f"[Note: It will take some time to sort {imgshape[0]*imgshape[1]:d} pixels!]")
     imgarr_sorted_df = \
         pwpd.get_sorted_imarray(country_t, sort_Ntop, printout=False)
-    # save the sorted data to csv
+    #=== Save the sorted data to csv
     sort_outfile = outdir + countrycode \
-        + "_" + GHS_lengthscale +  "_sorted-data.csv"
+        + "_" + popimage_type + "-" \
+        + "_" + popimage_lengthscale +  "_sorted-data.csv"
+    print("Saving the sorted list of top pixels to the file:")
+    print("\t" + sort_outfile)
     imgarr_sorted_df.to_csv(sort_outfile, index=False)
-    # plot the Nnonzero and pixvalue
+    #=== Plot the Nnonzero and pixvalue and save plots
     sort_plot_outfile = outdir + countrycode \
-        + "_" + GHS_lengthscale + "_plot-sorted.pdf"
+        + "_" + popimage_type + "-" \
+        + "_" + popimage_lengthscale + "_plot-sorted.pdf"
+    print("Plotting the number of nonzero neighbors and the")
+    print("values of the top pixels, and saving plot to the file:")
+    print("\t" + sort_plot_outfile)
     pwpd.plot_sorted(imgarr_sorted_df, sort_plot_outfile)
     
-#=== Get cleaned PWD
+#================================================================
+#===        Cleaning (removing hot pixels from) image         ===
+#===                                                          ===
+#===                     (GHS only)                           ===
+#===                                                          ===
+#===  The GHS-POP images have problems with "hot pixels" and  ===
+#===  might need to be "cleaned" prior to giving a good       ===
+#===  estimate of the population-weighted population density. ===
+#================================================================
+#
 if ((cleanpwd == 'by_neighbors') & (popimage_type == 'GHS')):
+    #=== Clean by checking neighbors of max-valued pixels
     print("\nCleaning the image and re-calculating PWPD...")
     print(f"Checking {clean_Ncheck:d} pixels," 
           + f" and removing up to {clean_Npixels:d}"
           + f" with more than {clean_maxNzero:d} zero-valued neighbors.")
     print("\tstep\trank\tNzeros\tpop\t\tpwd\tpwlogpd\t(lat,lon)")
-    # Clean by checking neighbors of max pixels
+    # Returns list of image characteristics after each cleaning
+    # operation (each time a pixel is zeroed out):
+    #
+    #    checked = number checked so far
+    #    zeros = number of zero-valued neighboring pixels of cleaned pixel
+    #    pop = new population after zeroing out the pixel
+    #    pwd = new pwpd after zeroing out the pixel
+    #    pwlogpd = new pw-log(pd) after zeroing out the pixel
+    #    (lat, lon) = geographic position of zeroed pixel
+    #    maxpix = locations of new max-valued pixels after cleaning
+    #
     (checked, zeros, pop, pwd, pwlogpd, lat, lon, maxpix) = \
         pwpd.get_cleaned_pwpd(img, img_transform, clean_Npixels,
                               clean_Ncheck, clean_maxNzero, clean_Nmaxpix)
-    # pre-append the uncleaned data
+    #=== Output results of cleaning (at each step) to user
+    # First pre-pend the characteristics of the uncleaned image data
     checked.insert(0,0); zeros.insert(0,0)
     pop.insert(0,pop_orig); pwd.insert(0,pwd_orig)
     pwlogpd.insert(0,pwlogpd_orig); lat.insert(0,0.0); lon.insert(0,0.0)
@@ -104,14 +169,14 @@ if ((cleanpwd == 'by_neighbors') & (popimage_type == 'GHS')):
               + f"({la:.6f},{lo:.6f})")
         step += 1
 elif ((cleanpwd == 'by_force') & (popimage_type == 'GHS')):
+    #=== Clean by simply removing the top clean_Npixels pixels
     print(f"\nCleaning the image by simply removing the top {clean_Npixels:d} pixels")
-    # Clean by simply removing the top clean_Npixels pixels
     (maxpix, newimg) = pwpd.get_cleaned_pwpd_force(img, img_transform, clean_Npixels,
                                                    clean_Nmaxpix)
     (pop, pwd, pwlogpd) = pwpd.get_pop_pwpd_pwlogpd(newimg)        
     print(f"New pwd = {pwd:.1f}, with pop = {int(pop):d} and pwlogpd = {pwlogpd:.4f}\n\n")
 
-# print out locations of top clean_Nmaxpix pixels after cleaning
+#=== Print out locations of top clean_Nmaxpix pixels after cleaning
 if (cleanpwd):
     print(f"The {clean_Nmaxpix:d} max pixels after cleaning:")
     for p in maxpix:

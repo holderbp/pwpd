@@ -88,29 +88,25 @@ def set_popimage_pars(popimtype, epoch, lengthstring):
     global GHS_filepath
     global GPW_length_string, GPW_epoch_string
     global GPW_popcount_filepath, GPW_popdensity_filepath
-    # set population image type
+    # Set population image type  ('GHS' or 'GPW')
     popimage_type = popimtype
     # and it's associated parameters
     if (popimtype == 'GHS'):
-        # set epoch
-        if (epoch == '2015'):
-            GHS_epoch_string = 'E2015'
-        else:
-            print("***Error: GHS epoch", epoch, "not found.")
-            exit(0)
-        # set lengthscale string for file manipulation
+        # Set epoch string
+        GHS_epoch_string = 'E' + epoch
+        # Set lengthscale string and value
         if (lengthstring == '250m'):
             GHS_length_string = '250'
+            GHS_resolution_in_km = 0.250
         elif (lengthstring == '1km'):
             GHS_length_string = '1K'
+            GHS_resolution_in_km = 1.0
         else:
             print("***Error: GHS lengthscale", lengthstring, "not recognized.")
+            print("          Only 250m and 1km resolutions are set up in pwpd.py")
             exit(0)
-        # set lengthscale value and pixel area
-        if (GHS_length_string == '250'):
-            GHS_resolution_in_km = 0.250
-        elif (GHS_length_string == '1K'):
-            GHS_resolution_in_km = 1.0
+        # Set GHS pixel area: The 250m and 1km resolution
+        # images use equal-area, Mollweide coords)
         GHS_Acell_in_kmsqd = GHS_resolution_in_km**2
         # set GHS image filepath
         #   e.g., "GHS_POP_E2015_GLOBE_R2019A_54009_1K_V1_0"
@@ -122,17 +118,18 @@ def set_popimage_pars(popimtype, epoch, lengthstring):
         GHS_filepath =  GHS_dir + filestring + "/" + filestring + ".tif"
     elif (popimtype == 'GPW'):
         # set epoch
-        if (epoch == '2020'):
-            GPW_epoch_string = '2020'
-        else:
-            print("***Error: GPW epoch", epoch, "not found.")
-            exit(0)
-        # set lengthscale string for file manipulation
+        GPW_epoch_string = epoch
+        # set lengthscale string
         if (lengthstring == '30as'):
             GPW_length_string = '30_sec'
-        else:
-            print("***Error: GPW lengthscale", lengthstring, "not recognized.")
-            exit(0)
+        elif (lengthstring == '2.5am'):
+            GPW_length_string = '2pt5_min'
+        elif (lengthstring == '15am'):
+            GPW_length_string = '15_min'
+        elif (lengthstring == '30am'):
+            GPW_length_string = '30_min'
+        elif (lengthstring == '1deg'):
+            GPW_length_string = '1_deg'
         # set GPW image filepath  
         GPW_popcount_filepath =  GPW_dir + GPW_file_string1 \
             + "_population_count_" + GPW_file_string2 \
@@ -444,7 +441,7 @@ def get_gamma(pop, area, pwpd, popimage_type, popimage_length_string):
     """Calculate the so-called population sparsity"""
     # Get pwpd pixel area in km^2
     if ((popimage_type == 'GHS') & (popimage_length_string == '1km')):
-        areacsale = 1000.0**2
+        areascale = 1000.0**2
     elif ((popimage_type == 'GHS') & (popimage_length_string == '250m')):
         areascale = 0.25**2
     elif ((popimage_type == 'GPW') & (popimage_length_string == '30as')):
@@ -552,6 +549,10 @@ def get_latlon(xpix, ypix, img_shape, img_transform):
     (lat, lon) = transform_mollweide_to_latlon(xgeo, ygeo)
     return (lat, lon)
 
+############################################################
+#    Image cleaning subroutines (only for GHS-POP images)  #
+############################################################
+
 def count_nonzero_neighbors(arr, r, c, rows, cols):
     if ( (r==0) | (r==(rows-1))  | (c==0) | (c==(cols-1)) ):
         print(f"***Warning: edge pixel at ({r:d},{c:d}) not checked, but deleted.")
@@ -565,6 +566,10 @@ def count_nonzero_neighbors(arr, r, c, rows, cols):
     return count
     
 def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
+    # only do this for GHS-POP images
+    if (popimage_type == 'GPW'):
+        print("***Error: Not currently set up to do cleaning of GPW images.")
+        exit(0)
     arr = np.array(img)
     (rows,cols) = arr.shape
     arr[(arr == GHS_no_data_value)] = 0.0
@@ -604,6 +609,10 @@ def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
     return (checked, zeros, totalpop, pwd, pwlogpd, lat, lon, maxpix)
 
 def get_cleaned_pwpd_force(img, img_transform, Npixels, Nmaxpix):
+    # only do this for GHS-POP images
+    if (popimage_type == 'GPW'):
+        print("***Error: Not currently set up to do cleaning of GPW images.")
+        exit(0)
     arr = np.array(img)
     arr[(arr == GHS_no_data_value)] = 0.0
     # make new copy of image for cleaning    
@@ -620,7 +629,7 @@ def get_cleaned_pwpd_force(img, img_transform, Npixels, Nmaxpix):
     return (maxpix, arr)
 
 ############################################################
-#                   Sorting the Image                      #
+#        Sorting the Image  (only for GHS-POP images)      #
 ############################################################
 
 def flatten_and_sort_image(img):
@@ -648,7 +657,7 @@ def get_sorted_imarray(window_df, sort_Ntop, printout=True):
         img, img_transform = \
             get_windowed_subimage(window_df, GHS_filepath)
     elif (popimage_type == 'GPW'):
-        print("***Error: Not currently set up to do sort on GPW")
+        print("***Error: Not currently set up to do sorting for GPW images.")
         exit(0)
     arr = np.array(img)
     arr[arr > 0] = 0.0
@@ -675,6 +684,10 @@ def get_sorted_imarray(window_df, sort_Ntop, printout=True):
     return sorted_df
 
 def plot_sorted(sorted_df, outfile):
+    # only do this for GHS-POP images
+    if (popimage_type == 'GPW'):
+        print("***Error: Not currently set up to do sorting of GPW images.")
+        exit(0)
     # First make a 10-point average of the NnonzeroN
     sorted_df['NnonzeroN_avg'] = sorted_df['NnonzeroN'].rolling(10).mean()
     # Then make plots of NnonzeroN_avg and pixpop
