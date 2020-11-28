@@ -4,26 +4,34 @@ import numpy as np
 import pwpd
 
 
-#=== Parameters for the population image
+#===========================================
+#=== Parameters for the population image ===
+#===========================================
+#
 #--- possible types are 'GHS' and 'GPW'
 #popimage_type = 'GHS' 
 popimage_type = 'GPW'  
 #--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
 popimage_epoch = '2015'  
-#---  possible lengthscales are:
+#--- possible resolutions (~ pixel length scale) are:
 #      GHS: '250m', '1km'
 #      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
-#popimage_lengthscale = '1km'
-popimage_lengthscale = '30as'
+#popimage_resolution = '1km'
+popimage_resolution = '30as'
 
-#=== Output
+#==============================
+#=== Output directory/files ===
+#==============================
 outdir = "../output/"
 pwpd_outfilepath = outdir + "pwpd" + "_" + popimage_type \
-    + "_" + popimage_epoch + "_" + popimage_lengthscale \
-    + ".csv"
+    + "_" + popimage_epoch + "_" + popimage_resolution + ".csv"
 
+#=================
+#=== Main code ===
+#=================
+#
 #=== Set the population image parameters
-pwpd.set_popimage_pars(popimage_type, popimage_epoch, popimage_lengthscale)
+pwpd.set_popimage_pars(popimage_type, popimage_epoch, popimage_resolution)
 
 #=== Load the shapefiles for all countries
 allcountries_df = pwpd.load_world_shapefiles()
@@ -57,15 +65,15 @@ for index, row in pwpd_countries.iterrows():
         # Calculate population sparsity (gamma)
         pwpd_countries.at[index, 'gamma'] = \
             pwpd.get_gamma(pop_orig, area, pwd_orig,
-                           popimage_type, popimage_lengthscale)
+                           popimage_type, popimage_resolution)
         # Print result to user
         print("=" * 80)
         print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
               + popimage_epoch + " " + popimage_type 
-              + " image with resolution " + popimage_lengthscale + "...\n")
+              + " image with resolution " + popimage_resolution + "...\n")
         print("The country of " + countryname + " (" + countrycode
               + f") has a population of {int(pop_orig):,d}.\n"
-              + f"The PWPD_{popimage_type:s}_{popimage_lengthscale:s}"
+              + f"The PWPD_{popimage_type:s}_{popimage_resolution:s}"
               + f" is {pwd_orig:.1f} per km^2"
               + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}")
     else:
