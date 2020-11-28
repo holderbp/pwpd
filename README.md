@@ -56,7 +56,11 @@ Shapefiles for US counties should be downloaded from the [US Census](https://www
 
 ### Helper Functions
 
-These three helper functions can be run with python (after generating the conda environment using `src/pwpd.yml`).  They import and use the `pwpd` module (described below).
+The helper functions below should be executed with Python 3 within the `pwpd` conda environment, created by:
+
+```
+conda env create -f src/pwpd.yml
+```
 
  * `src/get_pwpd_country.py` --- Output the PWD (and other characteristics) of a single country by specifying the three-letter country code on the command line.  Edit parameters at beginning of file to select the population image, epoch and resolution.  See also information on "cleaning" below.
  * `src/get_pwpd_all_countries.py` --- Output and write a csv file with the PWD (and other characteristics) for all countries for which there is an area and shapefile available.  Files will be written to `output`. Edit parameters at beginning of file to select the population image, epoch and resolution. 
