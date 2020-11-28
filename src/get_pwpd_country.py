@@ -21,11 +21,12 @@ popimage_resolution = '1km'
 #popimage_resolution = '1deg'
 
 #================================================================
-#=== Parameters for getting sorted array of image  (GHS only) ===
+#=== Parameters for sorting and displaying max-valued pixels ====
+#===                     (GHS only)                          ====
 #================================================================
 #
-getsorted = False
-sort_Ntop = 5000  # number of top pixels to return
+getsorted = False # sort image and then output and plot top pixels
+sort_Ntop = 5000  # number of top pixels to return (csv file and plot)
 
 #=====================================================
 #=== Parameters for cleaning the image  (GHS only) ===
