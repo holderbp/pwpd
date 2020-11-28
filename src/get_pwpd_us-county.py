@@ -3,12 +3,27 @@ import sys
 import numpy as np
 import pwpd
 
-GHS_epoch = '2015'
-GHS_lengthscale = '250m' # '1km' or '250m'
+outdir = "../output/"
 
-#=== Parse commandline input:
+#===========================================
+#=== Parameters for the population image ===
+#===========================================
 #
-#    Accept either [stateabb countyname] or their FIPS codes
+#--- possible types are 'GHS' and 'GPW'
+#popimage_type = 'GHS' 
+popimage_type = 'GPW'  
+#--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
+popimage_epoch = '2015'  
+#--- possible resolutions (~ pixel length scale) are:
+#      GHS: '250m', '1km'
+#      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
+#popimage_resolution = '1km'
+popimage_resolution = '30as'
+
+#================================================================
+#===                  Commandline input:                      ===
+#===  Accept either [stateabb countyname] or their FIPS codes ===
+#================================================================
 #
 fips_input = False
 if (len(sys.argv) == 3):
@@ -35,6 +50,13 @@ else:
     print("\n(Use the conda file pwpd.yml)")
     exit(0)
 
+#=================
+#=== Main code ===
+#=================
+#
+#=== Set the population image parameters
+pwpd.set_popimage_pars(popimage_type, popimage_epoch, popimage_resolution)
+
 #=== load the dataframe all US-county shapefiles
 countyshapes_df = pwpd.load_UScounty_shapefiles()
 
@@ -46,30 +68,23 @@ else:
     (county, fips_state, fips_county, name_state, name_countylong) = \
         pwpd.get_UScounty_by_name(countyshapes_df, stateabb, name_county)
 
-#=== transform to Mollweide
-#
-#       The "county" dataframe is a geopandas object
-#       so it has the "to_crs" method
-#
-county_m = county.to_crs(crs=pwpd.eps_mollweide)
+#=== Transform shapefile to coordinate system of the population image
+county_t = pwpd.transform_shapefile(county)
 
-#=== Set the lengthscale choice for GHS image
-pwpd.set_GHS_lengthscale(GHS_lengthscale)
-
-#=== Mask GHS-POP image on county, get raster subimage
-img, img_transform = pwpd.get_GHS_windowed_subimage(county_m)
-
-#=== Get population and population-weighted--population density
-arr = np.array(img)
-arr[(arr == pwpd.GHS_no_data_value)] = 0.0
-(pop, pwd, pwlogpd) = pwpd.get_pop_pwpd_pwlogpd(arr, nparr=True)
+#=== Get population, population-weighted population density
+#    and the population-weighted log(pop density)
+(pop_orig, pwd_orig, pwlogpd_orig, imgshape) = \
+    pwpd.get_pop_pwpd_pwlogpd(county_t)
 
 #=== Print result to user
 print("=" * 80)
-print("Using the " + GHS_epoch + " GHS-POP image with resolution " + GHS_lengthscale + "...\n")
+print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
+      + popimage_epoch + " " + popimage_type 
+      + " image with resolution " + popimage_resolution + "...\n")
 print(name_countylong + " in " + name_state
       + f", with FIPS = ({fips_state:d}, {fips_county:d}), "
-      + f"has a population of {int(pop):,d}.\n"
-      + f"The PWPD_{GHS_lengthscale:s} is {pwd:.1f} per km^2"
-      + f" and exp[ PWlogPD ] = {np.exp(pwlogpd):.1f}")
+      + f"has a population of {int(pop_orig):,d}.\n"
+      + f"The PWPD_{popimage_type:s}_{popimage_resolution:s}"
+      + f" is {pwd_orig:.1f} per km^2"
+      + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}")
 print("=" * 80)

@@ -1,5 +1,6 @@
 # Use the pwpd.yml conda environment
 import sys
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import geopandas as gpd
@@ -48,7 +49,7 @@ GHS_file_string1 = "GHS_POP"
 GHS_file_string2 = "GLOBE_R2019A_54009"
 GHS_file_string3 = "V1_0" 
 GHS_filepath = None
-GHS_length_string = None
+GHS_resolution_string = None
 GHS_epoch_string = None
 GHS_Acell_in_kmsqd = None
 GHS_coordinates = 'esri:54009'   # Mollweide
@@ -71,7 +72,7 @@ GHS_coordinates = 'esri:54009'   # Mollweide
 #
 # === GPW parameters  
 #
-GPW_length_string = None
+GPW_resolution_string = None
 GPW_epoch_string = None
 GPW_dir = "../data/gpw/"
 GPW_file_string1 = "gpw_v4"
@@ -84,9 +85,9 @@ GPW_coordinates = 'epsg:4326'   # WSG84 Lat/Lon
 def set_popimage_pars(popimtype, epoch, lengthstring):
     """Set parameters for the population raster image"""
     global popimage_type
-    global GHS_length_string, GHS_epoch_string, GHS_Acell_in_kmsqd
+    global GHS_resolution_string, GHS_epoch_string, GHS_Acell_in_kmsqd
     global GHS_filepath
-    global GPW_length_string, GPW_epoch_string
+    global GPW_resolution_string, GPW_epoch_string
     global GPW_popcount_filepath, GPW_popdensity_filepath
     # Set population image type  ('GHS' or 'GPW')
     popimage_type = popimtype
@@ -96,13 +97,13 @@ def set_popimage_pars(popimtype, epoch, lengthstring):
         GHS_epoch_string = 'E' + epoch
         # Set lengthscale string and value
         if (lengthstring == '250m'):
-            GHS_length_string = '250'
+            GHS_resolution_string = '250'
             GHS_resolution_in_km = 0.250
         elif (lengthstring == '1km'):
-            GHS_length_string = '1K'
+            GHS_resolution_string = '1K'
             GHS_resolution_in_km = 1.0
         else:
-            print("***Error: GHS lengthscale", lengthstring, "not recognized.")
+            print("\n***Error: GHS lengthscale", lengthstring, "not recognized.")
             print("          Only 250m and 1km resolutions are set up in pwpd.py")
             exit(0)
         # Set GHS pixel area: The 250m and 1km resolution
@@ -113,7 +114,7 @@ def set_popimage_pars(popimtype, epoch, lengthstring):
         filestring = GHS_file_string1 \
             + "_" + GHS_epoch_string + "_" \
             + GHS_file_string2 \
-            + "_" + GHS_length_string + "_" \
+            + "_" + GHS_resolution_string + "_" \
             + GHS_file_string3
         GHS_filepath =  GHS_dir + filestring + "/" + filestring + ".tif"
     elif (popimtype == 'GPW'):
@@ -121,41 +122,50 @@ def set_popimage_pars(popimtype, epoch, lengthstring):
         GPW_epoch_string = epoch
         # set lengthscale string
         if (lengthstring == '30as'):
-            GPW_length_string = '30_sec'
+            GPW_resolution_string = '30_sec'
         elif (lengthstring == '2.5am'):
-            GPW_length_string = '2pt5_min'
+            GPW_resolution_string = '2pt5_min'
         elif (lengthstring == '15am'):
-            GPW_length_string = '15_min'
+            GPW_resolution_string = '15_min'
         elif (lengthstring == '30am'):
-            GPW_length_string = '30_min'
+            GPW_resolution_string = '30_min'
         elif (lengthstring == '1deg'):
-            GPW_length_string = '1_deg'
+            GPW_resolution_string = '1_deg'
+        else:
+            print("\n***Error: The resolution", lengthstring, "does not exist for GPW.")
+            exit(0)
         # set GPW image filepath  
         GPW_popcount_filepath =  GPW_dir + GPW_file_string1 \
             + "_population_count_" + GPW_file_string2 \
             + "_" + GPW_epoch_string \
-            + "_" + GPW_length_string + ".tif"
+            + "_" + GPW_resolution_string + ".tif"
         GPW_popdensity_filepath =  GPW_dir + GPW_file_string1 \
             + "_population_density_" + GPW_file_string2 \
             + "_" + GPW_epoch_string \
-            + "_" + GPW_length_string + ".tif"
+            + "_" + GPW_resolution_string + ".tif"
     else:
-        print("***Error: Population image", popimtype, "not recognized.")
+        print("\n***Error: Population image", popimtype, "not recognized.")
         exit(0)
 
 def get_windowed_subimage(window_df, filepath):
     # get polygon shape(s) from the geopandas dataframe
     windowshapes = window_df["geometry"]
     # mask GHS-POP image with entire set of shapes
-    with rasterio.open(filepath) as src:
-        img, img_transform = \
-            rasterio.mask.mask(src, windowshapes, crop=True)
-        img_profile = src.profile
-        img_meta = src.meta
-    img_meta.update( { "driver": "GTiff",
-                       "height": img.shape[1],
-                       "width": img.shape[2],
-                       "transform": img_transform} )
+    try:
+        with rasterio.open(filepath) as src:
+            img, img_transform = \
+                rasterio.mask.mask(src, windowshapes, crop=True)
+            img_profile = src.profile
+            img_meta = src.meta
+            img_meta.update( { "driver": "GTiff",
+                               "height": img.shape[1],
+                               "width": img.shape[2],
+                               "transform": img_transform} )
+    except rasterio.errors.RasterioIOError:
+        print("\n***Error: File with path:")
+        print("\n", filepath, "\n")
+        print("          not found. Check the popimage type, epoch, and resolution.")
+        exit(0)
     # return only the first band (rasterio returns 3D array)
     return img[0], img_transform
 
@@ -273,7 +283,7 @@ def create_dataframe_with_areas(allcountries_df):
                 area = areas_df[areas_df['threelett'] == code]['area_kmsqd_2015'].to_numpy()[0]
                 pwpd_countries.at[index, 'area'] = area
             except IndexError:
-                print("***Error: Couldn't find area for", code)
+                print("\n***Error: Couldn't find area for", code)
     # make columns for other values
     pwpd_countries['pop'] = 0.0
     pwpd_countries['pwpd'] = 0.0
@@ -287,7 +297,7 @@ def get_country_by_countrycode(allcountries_df, countrycode):
     try:
         countryname = country['name'].to_list()[0]
     except IndexError:
-        print("***Error: Country with three-letter country code",
+        print("\n***Error: Country with three-letter country code",
               countrycode, "not found.")
         exit(0)
     return (country, countryname)
@@ -300,7 +310,7 @@ def transform_shapefile(country):
         # transform to WGS84
         return country.to_crs(crs=GPW_coordinates)        
     else:
-        print("***Error: Population image coordinates unknown/undefined.")
+        print("\n***Error: Population image coordinates unknown/undefined.")
         exit(0)
 
 #=== Shapefiles for the US Counties
@@ -386,7 +396,7 @@ def get_UScounty_by_fips(allcounties_df, fips_state, fips_county):
                   & (allcounties_df['fips_county'] == fips_county) )
     Nselected = len(allcounties_df[thecounty])
     if (Nselected != 1):
-        print(f"***Error: For the requested FIPS = ({fips_state:d},{fips_county:d})")
+        print(f"\n***Error: For the requested FIPS = ({fips_state:d},{fips_county:d})")
         print(f"          {Nselected:d} counties were found.")
         exit(0)
     county = allcounties_df[thecounty]
@@ -403,7 +413,7 @@ def get_UScounty_by_name(allcounties_df, stateabb, name_county):
                       | (allcounties_df['countylong'].str.lower() == name_county) ) )
     Nselected = len(allcounties_df[thecounty])
     if (Nselected != 1):
-        print(f"***Error: For {name_county:s}, {stateabb.upper(),s}")
+        print(f"\n***Error: For {name_county:s}, {stateabb.upper():s}")
         print(f"          {Nselected:d} counties were found.")
         exit(0)
     county = allcounties_df[thecounty]
@@ -433,20 +443,25 @@ def get_pop_pwpd_pwlogpd(window_df):
             get_windowed_subimage(window_df, GPW_popdensity_filepath)
         totalpop, pwd, pwlogpd = get_pwpd_from_count_and_density(popimg, pdimg)
     else:
-        print("***Error: Population image type unknown/unset")
+        print("\n***Error: Population image type unknown/unset")
         exit(0)
     return (totalpop, pwd, pwlogpd, np.array(popimg).shape)
 
-def get_gamma(pop, area, pwpd, popimage_type, popimage_length_string):
+def get_gamma(pop, area, pwpd, popimage_type, popimage_resolution_string):
     """Calculate the so-called population sparsity"""
     # Get pwpd pixel area in km^2
-    if ((popimage_type == 'GHS') & (popimage_length_string == '1km')):
-        areascale = 1000.0**2
-    elif ((popimage_type == 'GHS') & (popimage_length_string == '250m')):
+    if ((popimage_type == 'GHS') & (popimage_resolution_string == '1km')):
+        areascale = 1.0**2
+    elif ((popimage_type == 'GHS') & (popimage_resolution_string == '250m')):
         areascale = 0.25**2
-    elif ((popimage_type == 'GPW') & (popimage_length_string == '30as')):
+    elif ((popimage_type == 'GPW') & (popimage_resolution_string == '30as')):
         # FIXME: this should really be set based on 30as**2 at avg latitude
-        areascale = 1000.0**2
+        lengthscale = 1.0
+        areascale = lengthscale**2
+        print(f"***Warning: Setting GPW pixel area to {lengthscale:.1f}km x {lengthscale:.1f}km,")
+        print(f"            which is approximately correct for the resolution {popimage_resolution_string:s}")
+        print(f"            at the equator but is generally incorrect because pixels are not")
+        print(f"            equal area in the Geographic coordinate system.")
     return ( ( np.log(pwpd) - np.log(pop/area) ) \
              / (np.log(area) - np.log(areascale)) )
 
@@ -472,7 +487,7 @@ def get_pwpd_from_count(img, nparr=False):
                 np.sum( np.multiply( np.log(farr/GHS_Acell_in_kmsqd), farr)) \
                 / totalpop 
         elif (popimage_type == 'GPW'):
-            print("***Error: GPW not yet set up to measure areas...")
+            print("\n***Error: GPW not yet set up to measure areas...")
             exit(0)
     else:
         pwd = 0.0
@@ -481,7 +496,7 @@ def get_pwpd_from_count(img, nparr=False):
 
 def get_pwpd_from_count_and_density(pcimg, pdimg):
     if (popimage_type == 'GHS'):
-        print("***Error: GHS has no population density image...")
+        print("\n***Error: GHS has no population density image...")
         exit(0)
     pcarr = np.array(pcimg)
     pdarr = np.array(pdimg)
@@ -565,14 +580,18 @@ def count_nonzero_neighbors(arr, r, c, rows, cols):
             count += 1
     return count
     
-def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
+def get_cleaned_pwpd(window_df, Nclean, Ncheck, maxNzero, Nmaxpix):
     # only do this for GHS-POP images
     if (popimage_type == 'GPW'):
-        print("***Error: Not currently set up to do cleaning of GPW images.")
+        print("\n***Error: Not currently set up to do cleaning of GPW images.")
         exit(0)
-    arr = np.array(img)
+    # Get windowed subimage(s) of population raster
+    popimg, popimg_transform = \
+        get_windowed_subimage(window_df, GHS_filepath)
+    arr = np.array(popimg)
     (rows,cols) = arr.shape
-    arr[(arr == GHS_no_data_value)] = 0.0
+    # set no data valued (negative) pixels to zero
+    arr[arr < 0.0] = 0.0
     # make new copy of image for cleaning
     cl_arr = arr.copy()
     # and another one for for checking (will delete max each check)
@@ -593,7 +612,7 @@ def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
             # zero out that pixel in the cleaned image
             cl_arr[y,x] = 0.0
             # get the latitude and longitude of the pixel
-            (la, lo) = get_latlon(x, y, img.shape, img_transform)
+            (la, lo) = get_latlon(x, y, popimg.shape, popimg_transform)
             lat.append(la); lon.append(lo)
             # calculate pwpd etc from cleaned image
             (p, pw, pl) = get_pwpd_from_count(cl_arr, nparr=True)
@@ -604,17 +623,21 @@ def get_cleaned_pwpd(img, img_transform, Nclean, Ncheck, maxNzero, Nmaxpix):
     for i in np.arange(Nmaxpix):
         (y,x) = np.unravel_index(np.argmax(arr, axis=None), arr.shape)
         arr[y,x] = 0.0
-        (la, lo) = get_latlon(x, y, img.shape, img_transform)
+        (la, lo) = get_latlon(x, y, popimg.shape, popimg_transform)
         maxpix.append((la,lo))
     return (checked, zeros, totalpop, pwd, pwlogpd, lat, lon, maxpix)
 
-def get_cleaned_pwpd_force(img, img_transform, Npixels, Nmaxpix):
+def get_cleaned_pwpd_force(window_df, Npixels, Nmaxpix):
     # only do this for GHS-POP images
     if (popimage_type == 'GPW'):
-        print("***Error: Not currently set up to do cleaning of GPW images.")
+        print("\n***Error: Not currently set up to do cleaning of GPW images.")
         exit(0)
-    arr = np.array(img)
-    arr[(arr == GHS_no_data_value)] = 0.0
+    # Get windowed subimage(s) of population raster
+    popimg, popimg_transform = \
+        get_windowed_subimage(window_df, GHS_filepath)
+    arr = np.array(popimg)
+    # set no data valued (negative) pixels to zero    
+    arr[arr < 0.0] = 0.0
     # make new copy of image for cleaning    
     for i in np.arange(Npixels):
         (y,x) = np.unravel_index(np.argmax(arr, axis=None), arr.shape)
@@ -624,7 +647,7 @@ def get_cleaned_pwpd_force(img, img_transform, Npixels, Nmaxpix):
     for i in np.arange(Nmaxpix):
         (y,x) = np.unravel_index(np.argmax(arr, axis=None), arr.shape)
         arr[y,x] = 0.0
-        (la, lo) = get_latlon(x, y, img.shape, img_transform)
+        (la, lo) = get_latlon(x, y, popimg.shape, popimg_transform)
         maxpix.append((la,lo))
     return (maxpix, arr)
 
@@ -640,7 +663,7 @@ def flatten_and_sort_image(img):
     farr = arr.flatten()
     farr_r = grid[0].flatten()
     farr_c = grid[1].flatten()
-    # Then delete all nonzero values in the flattened array
+    # Then delete all nonpositive values in the flattened array
     selected = (farr > 0)
     farr = farr[selected]
     farr_r = farr_r[selected]
@@ -652,16 +675,19 @@ def flatten_and_sort_image(img):
     return farr[sortind], farr_r[sortind], farr_c[sortind]
 
 def get_sorted_imarray(window_df, sort_Ntop, printout=True):
-    # get windowed subimage
+    # Get windowed subimage
     if (popimage_type == 'GHS'):
         img, img_transform = \
             get_windowed_subimage(window_df, GHS_filepath)
     elif (popimage_type == 'GPW'):
-        print("***Error: Not currently set up to do sorting for GPW images.")
+        print("\n***Error: Not currently set up to do sorting for GPW images.")
         exit(0)
+    # Set no data valued (negative) pixels to zero    
     arr = np.array(img)
-    arr[arr > 0] = 0.0
+    arr[arr < 0.0] = 0.0
     (rows,cols) = arr.shape
+    # Get a flattened and sorted array
+    print("\tFlattening and sorting the array...")
     farr, farr_r, farr_c = flatten_and_sort_image(img)
     sorted_df = pd.DataFrame({'pixpop': farr[0:sort_Ntop],
                               'r': farr_r[0:sort_Ntop],
@@ -670,6 +696,8 @@ def get_sorted_imarray(window_df, sort_Ntop, printout=True):
     sorted_df['lat'] = 0.0
     sorted_df['lon'] = 0.0
     count = 0
+    print(f"\tGetting neighbors and positions of top {sort_Ntop:d} pixels...")
+    print("\t\tStarted: ", datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for index, row in sorted_df.iterrows():
         x = int(row.c)
         y = int(row.r)
@@ -681,12 +709,13 @@ def get_sorted_imarray(window_df, sort_Ntop, printout=True):
         if printout:
             print(f"{count:d}   ({x:d},{y:d}) {row.pixpop:.1f} {nonzeropix:d} ({la:.3f},{lo:.3f})")
         count += 1
+    print("\t\tEnded:   ", datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))    
     return sorted_df
 
 def plot_sorted(sorted_df, outfile):
     # only do this for GHS-POP images
     if (popimage_type == 'GPW'):
-        print("***Error: Not currently set up to do sorting of GPW images.")
+        print("\n***Error: Not currently set up to do sorting of GPW images.")
         exit(0)
     # First make a 10-point average of the NnonzeroN
     sorted_df['NnonzeroN_avg'] = sorted_df['NnonzeroN'].rolling(10).mean()
