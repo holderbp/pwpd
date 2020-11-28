@@ -454,14 +454,19 @@ def get_gamma(pop, area, pwpd, popimage_type, popimage_resolution_string):
         areascale = 1.0**2
     elif ((popimage_type == 'GHS') & (popimage_resolution_string == '250m')):
         areascale = 0.25**2
-    elif ((popimage_type == 'GPW') & (popimage_resolution_string == '30as')):
-        # FIXME: this should really be set based on 30as**2 at avg latitude
-        lengthscale = 1.0
-        areascale = lengthscale**2
-        print(f"***Warning: Setting GPW pixel area to {lengthscale:.1f}km x {lengthscale:.1f}km,")
-        print(f"            which is approximately correct for the resolution {popimage_resolution_string:s}")
-        print(f"            at the equator but is generally incorrect because pixels are not")
-        print(f"            equal area in the Geographic coordinate system.")
+    elif (popimage_type == 'GPW'):
+        if (popimage_resolution_string == '30as'):
+            # FIXME: this should really be set based on 30as**2 at avg latitude
+            lengthscale = 1.0
+            areascale = lengthscale**2
+            print(f"***Warning: Setting GPW pixel area to {lengthscale:.1f}km x {lengthscale:.1f}km,")
+            print(f"            which is approximately correct for the resolution {popimage_resolution_string:s}")
+            print(f"            at the equator but is generally incorrect because pixels are not")
+            print(f"            equal area in the Geographic coordinate system.")
+        else:
+            print("***Error: No areascale available for GPW pixels at >30as resolution.")
+            print("          Set \"do_gamma=False\" to get pwpd without gamma calculation.")
+            exit(0)
     return ( ( np.log(pwpd) - np.log(pop/area) ) \
              / (np.log(area) - np.log(areascale)) )
 

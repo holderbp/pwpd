@@ -18,6 +18,8 @@ popimage_epoch = '2015'
 #      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
 #popimage_resolution = '1km'
 popimage_resolution = '30as'
+# set this to False for GPW with resolution > 30as
+do_gamma = True
 
 #==============================
 #=== Output directory/files ===
@@ -63,9 +65,10 @@ for index, row in pwpd_countries.iterrows():
         # Calculate population density
         pwpd_countries.at[index, 'popdens'] = pop_orig/area
         # Calculate population sparsity (gamma)
-        pwpd_countries.at[index, 'gamma'] = \
-            pwpd.get_gamma(pop_orig, area, pwd_orig,
-                           popimage_type, popimage_resolution)
+        if do_gamma:
+            pwpd_countries.at[index, 'gamma'] = \
+                pwpd.get_gamma(pop_orig, area, pwd_orig,
+                               popimage_type, popimage_resolution)
         # Print result to user
         print("=" * 80)
         print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
