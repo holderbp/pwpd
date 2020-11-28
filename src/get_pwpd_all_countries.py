@@ -9,15 +9,15 @@ import pwpd
 #===========================================
 #
 #--- possible types are 'GHS' and 'GPW'
-#popimage_type = 'GHS' 
-popimage_type = 'GPW'  
+popimage_type = 'GHS' 
+#popimage_type = 'GPW'  
 #--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
 popimage_epoch = '2015'  
 #--- possible resolutions (~ pixel length scale) are:
 #      GHS: '250m', '1km'
 #      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
-#popimage_resolution = '1km'
-popimage_resolution = '30as'
+popimage_resolution = '1km'
+#popimage_resolution = '30as'
 # set this to False for GPW with resolution > 30as
 do_gamma = True
 
@@ -81,5 +81,5 @@ for index, row in pwpd_countries.iterrows():
               + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}")
     else:
         print("No area found for " + countrycode)
-    pwpd_countries.to_csv(pwpd_outfilepath)
+    pwpd_countries.to_csv(pwpd_outfilepath, index=False)
 
