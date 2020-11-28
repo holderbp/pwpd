@@ -266,7 +266,7 @@ def load_world_shapefiles():
     allcountries_df.columns = ['name', 'threelett', 'geometry']
     return allcountries_df
 
-def create_dataframe_with_areas(allcountries_df):
+def create_countries_dataframe_with_areas(allcountries_df):
     # load the areas dataframe, keep only three columns and rename, add Taiwan
     areas_df = pd.read_csv(areas_filepath)
     areas_df = areas_df[areas_collist]
@@ -292,6 +292,18 @@ def create_dataframe_with_areas(allcountries_df):
     pwpd_countries['gamma'] = 0.0
     return pwpd_countries
 
+def create_uscounties_dataframe(allcounties_df):
+    # copy over all but the geometry column
+    pwpd_counties = allcounties_df.copy()[['fips_state', 'fips_county', 'county',
+                                           'countylong', 'state', 'stateabb', 'landarea']]
+    # make columns for other values
+    pwpd_counties['pop'] = 0.0
+    pwpd_counties['pwpd'] = 0.0
+    pwpd_counties['pwlogpd'] = 0.0
+    pwpd_counties['popdens'] = 0.0
+    pwpd_counties['gamma'] = 0.0
+    return pwpd_counties
+
 def get_country_by_countrycode(allcountries_df, countrycode):
     country = allcountries_df[allcountries_df['threelett'] == countrycode]
     try:
@@ -302,13 +314,13 @@ def get_country_by_countrycode(allcountries_df, countrycode):
         exit(0)
     return (country, countryname)
 
-def transform_shapefile(country):
+def transform_shapefile(shapefile):
     if (popimage_type == 'GHS'):
         # transform to Mollweide
-        return country.to_crs(crs=GHS_coordinates)
+        return shapefile.to_crs(crs=GHS_coordinates)
     elif (popimage_type == 'GPW'):
         # transform to WGS84
-        return country.to_crs(crs=GPW_coordinates)        
+        return shapefile.to_crs(crs=GPW_coordinates)        
     else:
         print("\n***Error: Population image coordinates unknown/undefined.")
         exit(0)

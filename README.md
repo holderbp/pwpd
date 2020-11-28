@@ -42,7 +42,7 @@ in the following directories, respectively:
 
 Lower resolutions of GHS-POP have not yet been implemented and would require slight adjustment of the code due to the different coordinate system; lower resolutions of GPWv4 should work but have not been tested.
 
-The choice of image type and resolution is set by the helper function `set_popimage_pars`.
+The choice of image type and resolution is specified within the helper functions (see below).
 
 #### Shapefiles (countries provided; US counties must be downloaded separately)
 

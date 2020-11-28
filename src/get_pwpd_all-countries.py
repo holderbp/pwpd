@@ -43,7 +43,7 @@ allcountries_df = pwpd.load_world_shapefiles()
 #
 #   columns = [name, threelett, area, pop, pwpd, pwlogpd, popdens, gamma]
 #
-pwpd_countries = pwpd.create_dataframe_with_areas(allcountries_df)
+pwpd_countries = pwpd.create_countries_dataframe_with_areas(allcountries_df)
 
 #=== Make calculations for each country, output result to user, save csv
 for index, row in pwpd_countries.iterrows():
