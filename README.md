@@ -1,5 +1,5 @@
 # Population-weighted population density (PWPD)
-### Authors: Ben Holder and Niayesh Afshordi
+### Authors: Ben Holder (holderbp at gmail dot com) and Niayesh Afshordi
 
 This repository contains a module of subroutines, `src/pwpd.py`, for calculating the population weighted population density (PWD):
 

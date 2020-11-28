@@ -81,6 +81,7 @@ GPW_file_string2 = "adjusted_to_2015_unwpp_country_totals_rev11"
 GPW_popcount_filepath = None
 GPW_popdensity_filepath = None
 GPW_coordinates = 'epsg:4326'   # WSG84 Lat/Lon
+GPW_area_warning_not_given_yet = True # currently uses Apixel = (1km)^2 for 30as
 
 def set_popimage_pars(popimtype, epoch, lengthstring):
     """Set parameters for the population raster image"""
@@ -461,6 +462,7 @@ def get_pop_pwpd_pwlogpd(window_df):
 
 def get_gamma(pop, area, pwpd, popimage_type, popimage_resolution_string):
     """Calculate the so-called population sparsity"""
+    global GPW_area_warning_not_given_yet
     # Get pwpd pixel area in km^2
     if ((popimage_type == 'GHS') & (popimage_resolution_string == '1km')):
         areascale = 1.0**2
@@ -471,10 +473,12 @@ def get_gamma(pop, area, pwpd, popimage_type, popimage_resolution_string):
             # FIXME: this should really be set based on 30as**2 at avg latitude
             lengthscale = 1.0
             areascale = lengthscale**2
-            print(f"***Warning: Setting GPW pixel area to {lengthscale:.1f}km x {lengthscale:.1f}km,")
-            print(f"            which is approximately correct for the resolution {popimage_resolution_string:s}")
-            print(f"            at the equator but is generally incorrect because pixels are not")
-            print(f"            equal area in the Geographic coordinate system.")
+            if GPW_area_warning_not_given_yet:
+                print(f"***Warning: Setting GPW pixel area to {lengthscale:.1f}km x {lengthscale:.1f}km,")
+                print(f"            which is approximately correct for the resolution {popimage_resolution_string:s}")
+                print(f"            at the equator but is generally incorrect because pixels are not")
+                print(f"            equal area in the Geographic coordinate system.")
+                GPW_area_warning_not_given_yet = False
         else:
             print("***Error: No areascale available for GPW pixels at >30as resolution.")
             print("          Set \"do_gamma=False\" to get pwpd without gamma calculation.")

@@ -25,7 +25,7 @@ do_gamma = True
 #=== Output directory/files ===
 #==============================
 outdir = "../output/"
-pwpd_outfilepath = outdir + "pwpd" + "_" + popimage_type \
+pwpd_outfilepath = outdir + "pwpd_all-countries" + "_" + popimage_type \
     + "_" + popimage_epoch + "_" + popimage_resolution + ".csv"
 
 #=================
