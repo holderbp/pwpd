@@ -10,15 +10,15 @@ outdir = "../output/"
 #===========================================
 #
 #--- possible types are 'GHS' and 'GPW'
-#popimage_type = 'GHS' 
-popimage_type = 'GPW'  
+popimage_type = 'GHS' 
+#popimage_type = 'GPW'  
 #--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
 popimage_epoch = '2015'  
 #--- possible resolutions (~ pixel length scale) are:
 #      GHS: '250m', '1km'
 #      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
-#popimage_resolution = '1km'
-popimage_resolution = '30as'
+popimage_resolution = '1km'
+#popimage_resolution = '30as'
 # set this to False for GPW with resolution > 30as
 do_gamma = True
 
@@ -49,6 +49,8 @@ pwpd_counties = pwpd.create_uscounties_dataframe(countyshapes_df)
 # sort by state FIPS then county FIPS
 pwpd_counties = pwpd_counties.sort_values( by=['fips_state', 'fips_county'])
 countyshapes_df = countyshapes_df.sort_values( by=['fips_state', 'fips_county'])
+# convert area to km^2 from m^2
+pwpd_counties['landarea'] = pwpd_counties['landarea']/1e6
 
 #=== Make calculations for each country, output result to user, save csv
 prev_fips_state = 0
