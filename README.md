@@ -1,11 +1,13 @@
 # Population-weighted population density (PWPD)
 ### Authors: Ben Holder (holderbp at gmail dot com) and Niayesh Afshordi
 
-This repository contains a module of subroutines, `src/pwpd.py`, for calculating the population weighted population density (PWD):
+This repository contains a module of subroutines, `src/pwpd.py`, and helper functions for calculating the population weighted population density (PWD):
 
 <img src="https://latex.codecogs.com/gif.latex?{\rm&space;PWD}=\sum_j\frac{\left(p_j/a_j\right)p_j}{\sum_i&space;p_i}" title="{\rm PWD}=\sum_j\frac{\left(p_j/a_j\right)p_j}{\sum_i p_i}" />
 
 For a region divided into pixels of area <i>a<sub>j</sub></i> and population <i>p<sub>j</sub></i>, the PWD provides a measure of the "lived" population density, or that experienced by the average inhabitant.
+
+Sample output files containing PWD and other characteristics of US counties and the countries of the world can be found in `output` or reproduced with the code in `src`.
 
 ## Data Sets
 
