@@ -10,15 +10,15 @@ outdir = "../output/"
 #===========================================
 #
 #--- possible types are 'GHS' and 'GPW'
-#popimage_type = 'GHS' 
-popimage_type = 'GPW'  
+popimage_type = 'GHS' 
+#popimage_type = 'GPW'  
 #--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
 popimage_epoch = '2015'  
 #--- possible resolutions (~ pixel length scale) are:
 #      GHS: '250m', '1km'
 #      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
-#popimage_resolution = '1km'
-popimage_resolution = '30as'
+popimage_resolution = '250m'
+#popimage_resolution = '2.5am'
 # set this to False for GPW with resolution > 30as
 do_gamma = True
 

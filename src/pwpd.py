@@ -293,18 +293,6 @@ def create_countries_dataframe_with_areas(allcountries_df):
     pwpd_countries['gamma'] = 0.0
     return pwpd_countries
 
-def create_uscounties_dataframe(allcounties_df):
-    # copy over all but the geometry column
-    pwpd_counties = allcounties_df.copy()[['fips_state', 'fips_county', 'county',
-                                           'countylong', 'state', 'stateabb', 'landarea']]
-    # make columns for other values
-    pwpd_counties['pop'] = 0.0
-    pwpd_counties['pwpd'] = 0.0
-    pwpd_counties['pwlogpd'] = 0.0
-    pwpd_counties['popdens'] = 0.0
-    pwpd_counties['gamma'] = 0.0
-    return pwpd_counties
-
 def get_country_by_countrycode(allcountries_df, countrycode):
     country = allcountries_df[allcountries_df['threelett'] == countrycode]
     try:
@@ -325,6 +313,124 @@ def transform_shapefile(shapefile):
     else:
         print("\n***Error: Population image coordinates unknown/undefined.")
         exit(0)
+
+#=== Shapefiles for the Canadian Health Regions
+#
+#   Downloaded from "Statistics Canada --- Health region boundary files"
+#   (ESRI shapefile, ArcGIS Digital Boundary Files)
+#
+#       https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
+#
+#   df.columns = ['HR_UID', 'ENGNAME', 'FRENAME', 'SHAPE_AREA', 'SHAPE_LEN', 'geometry']
+#
+#   df.crs =
+#           <Projected CRS: PROJCS["PCS_Lambert_Conformal_Conic",GEOGCS["NAD83 ...>
+#           Name: PCS_Lambert_Conformal_Conic
+#           Axis Info [cartesian]:
+#           - [east]: Easting (metre)
+#           - [north]: Northing (metre)
+#           Area of Use:
+#           - undefined
+#           Coordinate Operation:
+#           - name: unnamed
+#           - method: Lambert Conic Conformal (2SP)
+#           Datum: North American Datum 1983
+#           - Ellipsoid: GRS 1980
+#           - Prime Meridian: Greenwich
+#
+#
+CanadaHR_shape_dir = "../data/shapefiles/CanadaHR/"
+CanadaHR_shape_filepath = CanadaHR_shape_dir + "HR_000b18a_e.shp"
+# see below for contents of this file
+CanadaHR_province_filepath = CanadaHR_shape_dir + "canada-provinces_w-hr-prefix.csv"
+
+def load_CanadaHR_shapefiles():
+    #=== read in Canada Health Regions dataframe
+    #    (keep only relevant columns and rename like in "codes")
+    df = gpd.read_file(CanadaHR_shape_filepath)
+    df = df[['HR_UID', 'ENGNAME', 'SHAPE_AREA', 'geometry']]
+    df.columns = ['hr_uid', 'region', 'area', 'geometry']
+    # ensure the hr_uid is an integer
+    df['hr_uid'] = df['hr_uid'].astype(int)
+    #=== Add the province name and abbreviation for each region
+    #    using the file of Canadian provinces with abb and hr_uid prefix
+    #
+    #         cols = [abb, name, hr_prefix]
+    #
+    df['province'] = ""
+    df['province_abb'] = ""
+    prov_df = pd.read_csv(CanadaHR_province_filepath)
+    prov_df['hr_prefix'] = prov_df['hr_prefix'].astype(int)
+    for index,row in df.iterrows():
+        hr_prefix = row.hr_uid // 100
+        df.at[index, 'province'] = \
+            prov_df[prov_df.hr_prefix == hr_prefix].name.to_list()[0]
+        df.at[index, 'province_abb'] = \
+            prov_df[prov_df.hr_prefix == hr_prefix].abb.to_list()[0]
+    return df
+
+def create_canada_hr_dataframe(df):
+    # copy over all but the geometry column
+    pwpd_df = df.copy()[['hr_uid', 'region', 'area', 'province',
+                         'province_abb']]
+    # make columns for other values
+    pwpd_df['pop'] = 0.0
+    pwpd_df['pwpd'] = 0.0
+    pwpd_df['pwlogpd'] = 0.0
+    pwpd_df['popdens'] = 0.0
+    pwpd_df['gamma'] = 0.0
+    return pwpd_df
+
+def get_CanadaHR_by_hr_uid(shapes_df, hr_uid):
+    the_hregion = (shapes_df['hr_uid'] == hr_uid)
+    Nselected = len(shapes_df[the_hregion])
+    if (Nselected != 1):
+        print(f"\n***Error: For the requested Health Region ({hr_uid:d})")
+        print(f"          {Nselected:d} regions were found.")
+        exit(0)
+    return shapes_df[the_hregion]
+
+def create_Canada_province_regions(df):
+    # don't bother with the single-region provinces
+    df = df[~df.province_abb.isin(['PE', 'YT', 'NU', 'NT'])]
+    # otherwise create a single-row dissolve for each province
+    prov_df = df.dissolve(by='province_abb', as_index=False)
+    # fix the names, areas and populations for these merged shapes
+    for index, row in prov_df.iterrows():
+        prov_abb = row.province_abb
+        hr_uid = (row.hr_uid // 100) * 100
+        area = df[df.province_abb == prov_abb].area.sum()
+        prov_df.at[index, 'hr_uid'] = hr_uid
+        prov_df.at[index, 'area'] = area
+        prov_df.at[index, 'region'] = 'Entire Province'
+    return prov_df
+
+def reassign_hr_uid(df, old_hr_uid, new_hr_uid):
+    newdf = df.copy()
+    for index, row in df.iterrows():
+        if (row.hr_uid == old_hr_uid):
+            newdf.at[index, 'hr_uid'] = new_hr_uid
+    return newdf
+
+def rename_hr(df, hr_uid, new_name):
+    newdf = df.copy()
+    for index, row in df.iterrows():
+        if (row.hr_uid == hr_uid):
+            newdf.at[index, 'region'] = new_name
+    return newdf
+
+def create_CanadaHR_composite_regions(df, hr_uid_list, new_hr_uid, new_hr_name):
+    # get dataframe with just the HRs to combine
+    df = df[df.hr_uid.isin(hr_uid_list)].copy()
+    # all in same province, so this should merge all
+    new_df = df.dissolve(by='province_abb', as_index=False)
+    # fix the names, areas and populations for these merged shapes
+    area = df.area.sum()
+    for index, row in new_df.iterrows():
+        new_df.at[index, 'hr_uid'] = new_hr_uid
+        new_df.at[index, 'area'] = area
+        new_df.at[index, 'region'] = new_hr_name
+    return new_df
 
 #=== Shapefiles for the US Counties
 #
@@ -403,6 +509,18 @@ def load_UScounty_shapefiles():
         allcounties_df.at[index,'stateabb'] = \
             statefips_df[thestate]['abb'].to_list()[0]
     return allcounties_df
+
+def create_uscounties_dataframe(allcounties_df):
+    # copy over all but the geometry column
+    pwpd_counties = allcounties_df.copy()[['fips_state', 'fips_county', 'county',
+                                           'countylong', 'state', 'stateabb', 'landarea']]
+    # make columns for other values
+    pwpd_counties['pop'] = 0.0
+    pwpd_counties['pwpd'] = 0.0
+    pwpd_counties['pwlogpd'] = 0.0
+    pwpd_counties['popdens'] = 0.0
+    pwpd_counties['gamma'] = 0.0
+    return pwpd_counties
 
 def get_UScounty_by_fips(allcounties_df, fips_state, fips_county):
     thecounty = ( (allcounties_df['fips_state'] == fips_state)
