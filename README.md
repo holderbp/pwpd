@@ -7,7 +7,7 @@ This repository contains a module of subroutines, `src/pwpd.py`, and helper func
 
 For a region divided into pixels of area <i>a<sub>j</sub></i> and population <i>p<sub>j</sub></i>, the PWD provides a measure of the "lived" population density, or that experienced by the average inhabitant.
 
-Sample output files containing PWD and other characteristics of US counties and the countries of the world can be found in `output` or reproduced with the code in `src`.
+Sample output files containing PWD and other characteristics of: US counties, Canadian health regions, and the countries of the world can be found in `output` or reproduced with the code in `src`.
 
 ## Data Sets
 
@@ -46,13 +46,15 @@ Lower resolutions of GHS-POP have not yet been implemented and would require sli
 
 The choice of image type and resolution is specified within the helper functions (see below).
 
-#### Shapefiles (countries provided; US counties must be downloaded separately)
+#### Shapefiles (countries and Canadian health regions provided; US counties must be downloaded separately)
 
 To calculate PWD for a particular political region, the boundaries of that region must be provided using a [ESRI Shapefile](https://www.esri.com/library/whitepapers/pdfs/shapefile.pdf) (read with Python's [`geopandas`](https://geopandas.org) package).
 
 Shapefiles for countries of the world are provided here in the `data/shapefiles/world` directory.  These are used, e.g., by the `src/get_pwpd_country.py` helper function, which takes a single commandline argument: the three-letter country code (e.g., USA, AFG, FRA). World shapefiles were taken from the public domain [_Natural Earth Vector_ dataset](https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-countries-2/) (also available on [Github](https://github.com/nvkelso/natural-earth-vector)), and use the WGS84 coordinate system (EPSG:4326).
 
 Shapefiles for US counties should be downloaded from the [US Census](https://www2.census.gov/geo/tiger/TIGER2019/COUNTY/) (79MB) and the unzipped directory `tl_2019_us_county` should be placed in the `data/shapefiles/UScounties` directory.  These shapefiles use the North American Datum Geographic (Lat/Lon) coordinate system (NAD83; EPSG:4269).
+
+Shapefiles for Canadian health regions are provided in the `data/shapefiles/CanadaHR` directory.
 
 ## PWPD Module and Helper Functions
 
@@ -68,6 +70,7 @@ conda env create -f src/pwpd.yml
  * `src/get_pwpd_all_countries.py` --- Output and write a csv file with the PWD (and other characteristics) for all countries for which there is an area and shapefile available.  File will be written to `output`. Edit parameters at beginning of file to select the population image, epoch and resolution. 
  * `src/get_pwpd_us-county.py` --- Output the PWD (and other characteristics) of a single US county by specifying the state and county name (or FIPS codes). Run the code without arguments for usage examples.  Edit parameters at beginning of file to select the population image, epoch and resolution.
  * `src/get_pwpd_all-us-counties.py` --- Output and write a csv file with the PWD (and other characteristics) for all US counties.  File will be written to `output`. Edit parameters at beginning of file to select the population image, epoch and resolution.
+ * `src/get_pwpd_all-canada-health-regions.py` --- Output and write a csv file with the PWD (and other characteristics) for all Canadian health regions.  File will be written to `output`. Edit parameters at beginning of file to select the population image, epoch and resolution.  Two options are provided for the shape files: the true health regions from [Statistics Canada](https://www150.statcan.gc.ca/n1/pub/82-402-x/2013003/data-donnees/boundary-limites/arcinfo/HRP000b11a_e.zip), and the [composite health regions](https://resources-covid19canada.hub.arcgis.com/datasets/regionalhealthboundaries-1?geometry=-132.911%2C52.171%2C-70.289%2C60.639) used by the [Covid-19 Canada Open Data Working Group](https://github.com/ccodwg/Covid19Canada).
  
 The `src/get_pwpd_country.py` helper function has options for "cleaning" the population image prior to calculating the PWD, when using the GHS-POP population image.  The GHS-POP image does a poor job at estimating the PWD for countries without high-resolution satellite imagery (e.g., AFG and ETH).  The [algorithm used to create high-resolution population maps](https://www.researchgate.net/profile/Martino_Pesaresi/publication/304625387_Development_of_new_open_and_free_multi-temporal_global_population_grids_at_250_m_resolution/links/5775219c08aead7ba06ff7d8/Development-of-new-open-and-free-multi-temporal-global-population-grids-at-250-m-resolution.pdf) (GHS-POP) from the low-resolution population maps (GPWv4, taken from census data) involves distributing populations in subpixels in proportion to the amount of human built-up structures.  In countries with poor satellite coverage, however, certain geographic features in unpopulated areas are mistaken for built-up structures and the population of a large rural area is assigned to a single/few pixel(s). These "hot" pixels lead to erroneously large PWD values.  The problem is worst for the 250m-resolution image, but remains for the 1km-scale image.  The cleaning functions are designed to zero out high-valued pixels in affected countries.  Specifically, high-valued pixels with too many zero-valued neighboring pixels are deleted (this is the `by_neighbors` mode for the `cleanpwd` option; alternatively one can simply delete the top N pixels using the `by_force` mode).  This strategy will delete many of the bad pixels in a country with the problem, but leave a country that does not have this problem unaffected (since its high-valued pixels rarely occur alone).
 
