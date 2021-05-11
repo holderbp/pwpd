@@ -214,7 +214,7 @@ if (hr_type == "statscanada"):
     shapes_df = shapes_df.append(
         pwpd.create_CanadaHR_composite_regions(shapes_df,
                                                [4701, 4702, 4703], 476,
-                                               "Central"),
+                                               "South"),
         ignore_index = True)
 elif (hr_type == "covid19"):
     # Still need to join the Saskatchewan districts since the COVID
