@@ -340,18 +340,53 @@ def transform_shapefile(shapefile):
 #
 #
 CanadaHR_shape_dir = "../data/shapefiles/CanadaHR/"
-CanadaHR_shape_filepath = CanadaHR_shape_dir + "HR_000b18a_e.shp"
+#=== Shape files:
+#
+# The Canadian health regions used for reporting COVID are slightly different
+# than the actual health regions.  This file can use the actual health regions
+# and merge them to create the larger COVID-reporting health regions, or it can
+# just use the COVID health regions shapefile, found here:
+#
+#   Statistics Canada
+#
+#   https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
+#
+#   COVID-ArcGIS
+#
+#   https://resources-covid19canada.hub.arcgis.com/datasets/regionalhealthboundaries-1?geometry=12.702%2C38.665%2C153.678%2C83.576
+#
+CanadaHR_shape_filepath_actual = \
+    CanadaHR_shape_dir + "StatisticsCanada_2018a/" +  "HR_000a18a_e.shp"
+CanadaHR_shape_filepath_covid = \
+    CanadaHR_shape_dir + "COVID-ArcGIS_regionalhealthboundaries/" + "RegionalHealthBoundaries.shp"
 # see below for contents of this file
 CanadaHR_province_filepath = CanadaHR_shape_dir + "canada-provinces_w-hr-prefix.csv"
 
-def load_CanadaHR_shapefiles():
+
+def load_CanadaHR_shapefiles(hr_type):
     #=== read in Canada Health Regions dataframe
     #    (keep only relevant columns and rename like in "codes")
-    df = gpd.read_file(CanadaHR_shape_filepath)
-    df = df[['HR_UID', 'ENGNAME', 'SHAPE_AREA', 'geometry']]
+    if (hr_type == "statscanada"):
+        df = gpd.read_file(CanadaHR_shape_filepath_actual)
+        df = df[['HR_UID', 'ENGNAME', 'SHAPE_AREA', 'geometry']]
+        # StatsCanada's SHAPE_AREA already seems to be land area in m^2
+    elif (hr_type == "covid19"):
+        df = gpd.read_file(CanadaHR_shape_filepath_covid)        
+        # convert area to m^2 ... see Fabio G's answer (21Jan2021):
+        #
+        #     https://gis.stackexchange.com/questions/218450
+        #  
+        test = df.copy()
+        test = test.to_crs({'proj': 'cea'})
+        df['area'] = test['geometry'].area
+        df = df[['HR_UID', 'ENGNAME', 'area', 'geometry']]
     df.columns = ['hr_uid', 'region', 'area', 'geometry']
-    # ensure the hr_uid is an integer
+    #=== Ensure the hr_uid is an integer
     df['hr_uid'] = df['hr_uid'].astype(int)
+    #=== Remove accents from names
+    df['region'] = \
+        df['region'].str.normalize('NFKD')\
+                        .str.encode('ascii', errors='ignore').str.decode('utf-8')
     #=== Add the province name and abbreviation for each region
     #    using the file of Canadian provinces with abb and hr_uid prefix
     #
@@ -363,6 +398,9 @@ def load_CanadaHR_shapefiles():
     prov_df['hr_prefix'] = prov_df['hr_prefix'].astype(int)
     for index,row in df.iterrows():
         hr_prefix = row.hr_uid // 100
+        if (hr_prefix == 5):
+            # If using the BC shortened numbers
+            hr_prefix = 59
         df.at[index, 'province'] = \
             prov_df[prov_df.hr_prefix == hr_prefix].name.to_list()[0]
         df.at[index, 'province_abb'] = \
@@ -399,7 +437,7 @@ def create_Canada_province_regions(df):
     for index, row in prov_df.iterrows():
         prov_abb = row.province_abb
         hr_uid = (row.hr_uid // 100) * 100
-        area = df[df.province_abb == prov_abb].area.sum()
+        area = df[df.province_abb == prov_abb]['area'].sum()
         prov_df.at[index, 'hr_uid'] = hr_uid
         prov_df.at[index, 'area'] = area
         prov_df.at[index, 'region'] = 'Entire Province'
@@ -425,7 +463,7 @@ def create_CanadaHR_composite_regions(df, hr_uid_list, new_hr_uid, new_hr_name):
     # all in same province, so this should merge all
     new_df = df.dissolve(by='province_abb', as_index=False)
     # fix the names, areas and populations for these merged shapes
-    area = df.area.sum()
+    area = df['area'].sum()
     for index, row in new_df.iterrows():
         new_df.at[index, 'hr_uid'] = new_hr_uid
         new_df.at[index, 'area'] = area

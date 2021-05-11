@@ -28,11 +28,29 @@ do_gamma = True
 # get shapefile and all pop measures for entire province
 get_entire_province = True
 
+# The health regions used for reporting COVID are slightly different than the
+# these actual health regions:
+#
+#   Statistics Canada
+#   https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
+#
+# This script can use those actual health regions and merge them to create
+# the larger COVID19-reporting health regions (approximate for SK), or the
+# script can (preferred) just use the COVID19 health regions shapefile, found
+# here:
+#
+#   COVID19-ArcGIS
+#   https://resources-covid19canada.hub.arcgis.com/datasets/regionalhealthboundaries-1?geometry=12.702%2C38.665%2C153.678%2C83.576
+#
+#
+hr_type = "covid19"  # ["statscanada" or "covid19"]
+
 #==============================
 #=== Output directory/files ===
 #==============================
 outdir = "../output/"
-pwpd_outfilepath = outdir + "pwpd_all-canada-health-regions" + "_" + popimage_type \
+pwpd_outfilepath = outdir + "pwpd_all-canada-health-regions" \
+    + "_" + hr_type + "_" + popimage_type \
     + "_" + popimage_epoch + "_" + popimage_resolution + ".csv"
 
 #=================
@@ -47,7 +65,7 @@ pwpd.set_popimage_pars(popimage_type, popimage_epoch, popimage_resolution)
 #    df.columns = ['hr_uid', 'region', 'area', 'geometry',
 #                  'province', 'province_abb']
 #
-shapes_df = pwpd.load_CanadaHR_shapefiles()
+shapes_df = pwpd.load_CanadaHR_shapefiles(hr_type)
 
 #=== Create regions for entire province
 if get_entire_province:
@@ -55,148 +73,198 @@ if get_entire_province:
         pwpd.create_Canada_province_regions(shapes_df),
         ignore_index=True)
 
-#=== Create new composite regions
-#
-#   The health regions in my shapefile, found here:
-#
-#       https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
-#
-#   mostly reproduced in these maps:
-#
-#       https://www150.statcan.gc.ca/n1/pub/82-402-x/2013003/map-cart-eng.htm
-#
-#   are different than those used by the Covid19Canada group (w/ Jean
-#   Paul Soucy and Isha Berry). Instead they use the regions shown on this
-#   map:
-#
-#       https://resources-covid19canada.hub.arcgis.com/datasets/regionalhealthboundaries-1?geometry=-86.235%2C41.505%2C-73.568%2C44.321
-#
-#   which I think are the current health regions.  See this page:
-#
-#       https://www12.statcan.gc.ca/health-sante/82-228/help-aide/Q01.cfm?Lang=E
-#
-#   Based on that page, though, it seems that the Covid19Canada group has
-#   mis-named the composite "Health Authorities" of BC, which comprise
-#   multiple "Health Regions"  (e.g., the Vancouver (5932) health region
-#   should be merged into the 593 Vancouver Coastal health authority, but
-#   instead it is called 595 ... All five health authorities are mis-named
-#   like that).
-#
-#   Also, the current Saskatchewan regions are not exactly the union of
-#   the regions I am using. Compare the statcan map for Saskatchewan to
-#   the resources-covid19canada.hub.arcgis.com map, above.
-#
-#   The differences are the following merged/renamed regions:
-
-#
-#     ##### Ontario #####
-#
-#         Oxford Elgin St. Thomas Health Unit (3575)
-#                      == Southwestern Health Unit (3575)
-#
-# Just rename this health region
-shapes_df = pwpd.rename_hr(shapes_df, 3575, "Southwestern Health Unit")
-#
-#         Huron (3539 -> 93539) + Perth (3554)
-#                      == Huron Perth Public Health Unit (3539)
-#
-# Change the old Huron region hr_uid to 93539 and create merged region
-shapes_df = pwpd.reassign_hr_uid(shapes_df, 3539, 93539)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [93539, 3554], 3539,
-                                           "Huron Perth Health Unit"),
-    ignore_index = True)
-#
-#     ##### British Columbia #####
-#
-#         Fraser East (5921) + Fraser North (5922) + Fraser South (5923)
-#                      == Fraser Health (591)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [5921, 5922, 5923], 591,
-                                           "Fraser Health"),
-    ignore_index = True)
-#
-#         East Kootenay (5911) + Kootenay-Boundary (5912)
-#            + Okanagan (5913) +  Thompson/Cariboo (5914)
-#                      == Interior Health (592)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [5911, 5912, 5913, 5914], 592,
-                                           "Interior Health"),
-    ignore_index = True)
-#
-#         South Vancouver Island (5941) + Central Vancouver Island (5942)
-#            + North Vancouver Island (5943)
-#                      == [Vancouver] Island Health (593)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [5941, 5942, 5943], 593,
-                                           "Vancouver Island Health"),
-    ignore_index = True)
-#
-#         Northwest (5951) + Northern Interior (5952) + Northeast (5953)
-#                      == Northern Health (594)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [5951, 5952, 5953], 594,
-                                           "Northern Health"),
-    ignore_index = True)
-#
-#         Richmond (5931) + Vancouver (5932)
-#            + North Shore / Coast Garibaldi (5933)
-#                      == Vancouver Coastal Health (595)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [5931, 5932, 5933], 595,
-                                           "Vancouver Coastal Health"),
-    ignore_index = True)
-#
-#     ##### Saskatchewan #####  
-#
-#     (***Warning*** these are approximate, not exact)
-#
-#         Mamawetan Churchill River (4711) + Keewatin Yatthe (4712)
-#            + Athabasca (4713)
-#                      == Far North (471)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [4711, 4712, 4713], 471,
-                                           "Far North"),
-    ignore_index = True)
-#
-#         Kelsey Trail (4708) + Prince Albert Parkland (4709)
-#            + Prairie North (4710)
-#                      == North (472)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [4708, 4709, 4710], 472,
-                                           "North"),
-    ignore_index = True)
-#
-#         Sunrise (4705) + Heartland (4707)
-#                      == Central (473)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [4705, 4707], 473,
-                                           "Central"),
-    ignore_index = True)
-#
-#         Saskatoon (4706) == Saskatoon (474)
-shapes_df = pwpd.reassign_hr_uid(shapes_df, 4706, 474)
-
-#
-#         Regina (4704) == Regina (475)
-shapes_df = pwpd.reassign_hr_uid(shapes_df, 4704, 475)
-#
-#         Sun Country (4701) + Five Hills (4702) + Cypress (4703)
-#                      == South (476)
-shapes_df = shapes_df.append(
-    pwpd.create_CanadaHR_composite_regions(shapes_df,
-                                           [4701, 4702, 4703], 476,
-                                           "Central"),
-    ignore_index = True)
+if (hr_type == "statscanada"):
+    #=== Create new composite regions
+    #
+    #   The health regions in my shapefile, found here:
+    #
+    #       https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
+    #
+    #   mostly reproduced in these maps:
+    #
+    #       https://www150.statcan.gc.ca/n1/pub/82-402-x/2013003/map-cart-eng.htm
+    #
+    #   are different than those used by the Covid19Canada group (w/ Jean
+    #   Paul Soucy and Isha Berry). Instead they use the regions shown on this
+    #   map:
+    #
+    #       https://resources-covid19canada.hub.arcgis.com/datasets/regionalhealthboundaries-1?geometry=-86.235%2C41.505%2C-73.568%2C44.321
+    #
+    #   which I think are the current health regions.  See this page:
+    #
+    #       https://www12.statcan.gc.ca/health-sante/82-228/help-aide/Q01.cfm?Lang=E
+    #
+    #   Based on that page, though, it seems that the Covid19Canada group has
+    #   mis-named the composite "Health Authorities" of BC, which comprise
+    #   multiple "Health Regions"  (e.g., the Vancouver (5932) health region
+    #   should be merged into the 593 Vancouver Coastal health authority, but
+    #   instead it is called 595 ... All five health authorities are mis-named
+    #   like that).
+    #
+    #   Also, the current Saskatchewan regions are not exactly the union of
+    #   the regions I am using. Compare the statcan map for Saskatchewan to
+    #   the resources-covid19canada.hub.arcgis.com map, above.
+    #
+    #   The differences are the following merged/renamed regions:
+    
+    #
+    #     ##### Ontario #####
+    #
+    #         Oxford Elgin St. Thomas Health Unit (3575)
+    #                      == Southwestern Health Unit (3575)
+    #
+    # Just rename this health region
+    shapes_df = pwpd.rename_hr(shapes_df, 3575, "Southwestern Health Unit")
+    #
+    #         Huron (3539 -> 93539) + Perth (3554)
+    #                      == Huron Perth Public Health Unit (3539)
+    #
+    # Change the old Huron region hr_uid to 93539 and create merged region
+    shapes_df = pwpd.reassign_hr_uid(shapes_df, 3539, 93539)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [93539, 3554], 3539,
+                                               "Huron Perth Health Unit"),
+        ignore_index = True)
+    #
+    #     ##### British Columbia #####
+    #
+    #         Fraser East (5921) + Fraser North (5922) + Fraser South (5923)
+    #                      == Fraser Health (591)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [5921, 5922, 5923], 591,
+                                               "Fraser Health"),
+        ignore_index = True)
+    #
+    #         East Kootenay (5911) + Kootenay-Boundary (5912)
+    #            + Okanagan (5913) +  Thompson/Cariboo (5914)
+    #                      == Interior Health (592)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [5911, 5912, 5913, 5914], 592,
+                                               "Interior Health"),
+        ignore_index = True)
+    #
+    #         South Vancouver Island (5941) + Central Vancouver Island (5942)
+    #            + North Vancouver Island (5943)
+    #                      == [Vancouver] Island Health (593)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [5941, 5942, 5943], 593,
+                                               "Vancouver Island Health"),
+        ignore_index = True)
+    #
+    #         Northwest (5951) + Northern Interior (5952) + Northeast (5953)
+    #                      == Northern Health (594)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [5951, 5952, 5953], 594,
+                                               "Northern Health"),
+        ignore_index = True)
+    #
+    #         Richmond (5931) + Vancouver (5932)
+    #            + North Shore / Coast Garibaldi (5933)
+    #                      == Vancouver Coastal Health (595)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [5931, 5932, 5933], 595,
+                                               "Vancouver Coastal Health"),
+        ignore_index = True)
+    #
+    #     ##### Saskatchewan #####  
+    #
+    #     (***Warning*** these are approximate, not exact)
+    #
+    #         Mamawetan Churchill River (4711) + Keewatin Yatthe (4712)
+    #            + Athabasca (4713)
+    #                      == Far North (471)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4711, 4712, 4713], 471,
+                                               "Far North"),
+        ignore_index = True)
+    #
+    #         Kelsey Trail (4708) + Prince Albert Parkland (4709)
+    #            + Prairie North (4710)
+    #                      == North (472)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4708, 4709, 4710], 472,
+                                               "North"),
+        ignore_index = True)
+    #
+    #         Sunrise (4705) + Heartland (4707)
+    #                      == Central (473)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4705, 4707], 473,
+                                               "Central"),
+        ignore_index = True)
+    #
+    #         Saskatoon (4706) == Saskatoon (474)
+    shapes_df = pwpd.reassign_hr_uid(shapes_df, 4706, 474)
+    
+    #
+    #         Regina (4704) == Regina (475)
+    shapes_df = pwpd.reassign_hr_uid(shapes_df, 4704, 475)
+    #
+    #         Sun Country (4701) + Five Hills (4702) + Cypress (4703)
+    #                      == South (476)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4701, 4702, 4703], 476,
+                                               "Central"),
+        ignore_index = True)
+elif (hr_type == "covid19"):
+    # Still need to join the Saskatchewan districts since the COVID
+    # shapefiles break it up into subregions now (but we only use the
+    # COVID case/mortality data for the composite regions)
+    #
+    # Note, though that the regions have different hr_uids here
+    #
+    #     ##### Saskatchewan #####  
+    #
+    #        Far North Central (4752) + Far North East (4753)
+    #            + Far North West (4754)
+    #                      == Far North (471)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4752, 4753, 4754], 471,
+                                               "Far North"),
+        ignore_index = True)
+    #
+    #        North Central (4755) + North East (4756)
+    #            + North West (4757)
+    #                      == North (472)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4755, 4756, 4757], 472,
+                                               "North"),
+        ignore_index = True)
+    #
+    #        Central East (4750) + Central West (4751)
+    #                      == Central (473)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4750, 4751], 473,
+                                               "Central"),
+        ignore_index = True)
+    #
+    #        Saskatoon (4759) == Saskatoon (474)
+    shapes_df = pwpd.reassign_hr_uid(shapes_df, 4759, 474)
+    
+    #
+    #        Regina (4758) == Regina (475)
+    shapes_df = pwpd.reassign_hr_uid(shapes_df, 4758, 475)
+    #
+    #        South Central (4760) + South East (4761) + South West (4762)  
+    #                      == South (476)
+    shapes_df = shapes_df.append(
+        pwpd.create_CanadaHR_composite_regions(shapes_df,
+                                               [4760, 4761, 4762], 476,
+                                               "Central"),
+        ignore_index = True)
 
 #=== Make copy of HR shapefile dataframe for output,
 #    removing 'geometry' and adding relevant pop data
