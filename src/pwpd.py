@@ -598,6 +598,62 @@ def get_UScounty_by_name(allcounties_df, stateabb, name_county):
 #        Population-weighted Density Calculation           #
 ############################################################
 
+def get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath, do_gamma,
+                        popimage_type, popimage_resolution, popimage_epoch):
+    #=== Copy the county data from the shapefiles dataframe
+    #
+    #    columns = ['fips_state', 'fips_county', 'county',
+    #               'countylong', 'state', 'stateabb', 'landarea'
+    #               'pop', 'pwpd', 'pwlogpd', 'popdens', 'gamma']
+    #
+    pwpd_counties = create_uscounties_dataframe(countyshapes_df)
+    # convert area to km^2 from m^2
+    pwpd_counties['landarea'] = pwpd_counties['landarea']/1e6
+    #=== Make calculations for each county, output result to user, save csv
+    prev_fips_state = 0
+    for index, row in pwpd_counties.iterrows():
+        fips_state = row['fips_state']
+        fips_county = row['fips_county']
+        area = row['landarea']
+        name_countylong = row['countylong']
+        name_state = row['state']
+        # get the shapefile for a county, along with its names
+        (county, name_state, stateabb, name_countylong) = \
+            get_UScounty_by_fips(countyshapes_df, fips_state, fips_county)
+        # Transform shapefile to coordinate system of population image
+        county_t = transform_shapefile(county)
+        # Get population and population-weighted--population density
+        (pop_orig, pwd_orig, pwlogpd_orig, imgshape) = \
+            get_pop_pwpd_pwlogpd(county_t)
+        pwpd_counties.at[index, 'pop'] = pop_orig
+        pwpd_counties.at[index, 'pwpd'] = pwd_orig
+        pwpd_counties.at[index, 'pwlogpd'] = pwlogpd_orig
+        # Calculate population density
+        pwpd_counties.at[index, 'popdens'] = pop_orig/area
+        # Calculate population sparsity (gamma)
+        if do_gamma:
+            pwpd_counties.at[index, 'gamma'] = \
+                get_gamma(pop_orig, area, pwd_orig,
+                          popimage_type, popimage_resolution)
+        # Find centroid location in image
+        
+        # Print result to user
+        print("=" * 80)
+        print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
+              + popimage_epoch + " " + popimage_type 
+              + " image with resolution " + popimage_resolution + "...\n")
+        print(name_countylong + " in " + name_state
+              + f", with FIPS = ({fips_state:d}, {fips_county:d}), "
+              + f"has a population of {int(pop_orig):,d}.\n"
+              + f"The PWPD_{popimage_type:s}_{popimage_resolution:s}"
+              + f" is {pwd_orig:.1f} per km^2"
+              + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}")
+        # Save to csv file after each state
+        if (fips_state != prev_fips_state):
+            pwpd_counties.to_csv(pwpd_counties_outfilepath, index=False)
+        prev_fips_state = fips_state
+    return pwpd_counties
+
 def get_pop_pwpd_pwlogpd(window_df):
     # get windowed subimage(s) of population/popdensity rasters
     if (popimage_type == 'GHS'):
