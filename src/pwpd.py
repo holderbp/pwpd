@@ -564,6 +564,9 @@ def create_uscounties_dataframe(allcounties_df):
     pwpd_counties['popdens'] = 0.0
     pwpd_counties['gamma'] = 0.0
     # create columns for population centroid location (pop "center of mass")
+    #
+    #   NOTE: centroids will be correctly calculated for the GHS
+    #         images but not for GPW.  This is a FIXME
     pwpd_counties['pop_centroid_lat'] = 0.0
     pwpd_counties['pop_centroid_lon'] = 0.0 
     return pwpd_counties
