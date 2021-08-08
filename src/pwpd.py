@@ -2,6 +2,7 @@
 import sys
 import datetime
 import numpy as np
+import scipy.ndimage as spndi
 import matplotlib.pyplot as plt
 import geopandas as gpd
 import pandas as pd
@@ -14,6 +15,8 @@ import folium  # for making html maps with leaflet.js
 #         Population image parameters and methods          #
 ############################################################
 popimage_type = None
+popimage_epoch = None
+popimage_resolution = None
 #
 # === GHS-POP images downloaded from here:
 #
@@ -85,13 +88,15 @@ GPW_area_warning_not_given_yet = True # currently uses Apixel = (1km)^2 for 30as
 
 def set_popimage_pars(popimtype, epoch, lengthstring):
     """Set parameters for the population raster image"""
-    global popimage_type
+    global popimage_type, popimage_epoch, popimage_resolution
     global GHS_resolution_string, GHS_epoch_string, GHS_Acell_in_kmsqd
     global GHS_filepath
     global GPW_resolution_string, GPW_epoch_string
     global GPW_popcount_filepath, GPW_popdensity_filepath
     # Set population image type  ('GHS' or 'GPW')
     popimage_type = popimtype
+    popimage_epoch = epoch
+    popimage_resolution = lengthstring
     # and it's associated parameters
     if (popimtype == 'GHS'):
         # Set epoch string
@@ -558,6 +563,9 @@ def create_uscounties_dataframe(allcounties_df):
     pwpd_counties['pwlogpd'] = 0.0
     pwpd_counties['popdens'] = 0.0
     pwpd_counties['gamma'] = 0.0
+    # create columns for population centroid location (pop "center of mass")
+    pwpd_counties['pop_centroid_lat'] = 0.0
+    pwpd_counties['pop_centroid_lon'] = 0.0 
     return pwpd_counties
 
 def get_UScounty_by_fips(allcounties_df, fips_state, fips_county):
@@ -573,6 +581,114 @@ def get_UScounty_by_fips(allcounties_df, fips_state, fips_county):
     stateabb = county['stateabb'].to_list()[0]
     countylong = county['countylong'].to_list()[0]
     return (county, state, stateabb, countylong)
+
+def get_composite_pwds(df, countyshapes_df, composite_type, do_gamma=True):
+    """
+    Get PWPD etc for composite counties,
+    composite_type = ['state', 'composite-county', 'metro']
+    """
+    # Make new copy of the dataframe
+    #
+    #    this has columns:
+    #
+    #    ['sfips', 'cfips', 'fips', 'county_type', 'ccFIPS',
+    #     'state', 'county', 'dma', 'dmaname',
+    #     'landarea', 'pop', 'pwpd', 'pwlogpd', 'popdens', 'gamma']
+    #
+    # where the last row for composites is to be filled out here
+    #
+    newdf = df.copy()
+    # Get the list of FIPS-lists for counties to include
+    if (composite_type == "state"):
+        # get all state fips
+        fips = df[df['county_type'] == "state"]['fips'].to_list()
+        # prepare to make a list of county-fips lists, one for each state
+        fips_lists = []
+        for f in fips:
+            s = f // 1000
+            thecounties = ( (df['sfips'] == s)
+                            & ( (df['county_type'] == "part-of-composite")
+                                | (df['county_type'] == "regular") ) )
+            thefips = df[thecounties]['fips'].to_list()
+            fips_lists.append(thefips)
+    elif (composite_type == "composite-county"):
+        # get all composite-county fips
+        fips = df[df['county_type'] == "composite"]['fips'].to_list()
+        # remove Chugach-Copper River, since it was already done as the former
+        # Valdez district
+        fips.remove(2903)
+        # prepare to make a list of county-fips lists, one for each composite-county
+        fips_lists = []
+        for f in fips:
+            thecounties = (df['ccFIPS'] == f)
+            thefips = df[thecounties]['fips'].to_list()
+            fips_lists.append(thefips)
+    elif (composite_type == "metro"):
+        # get all the dma fips
+        fips = df[df['county_type'] == "metro"]['fips'].to_list()
+        # prepare to make a list of county-fips lists, one for each composite-county
+        fips_lists = []
+        for f in fips:
+            dma = f % 1000
+            thecounties = (df['dma'] == dma)
+            thefips = df[thecounties]['fips'].to_list()
+            fips_lists.append(thefips)
+    # Get composite shape for each list of FIPS, calculated the PWPD etc for
+    # this region, and place the results in the row for the composite
+    for i in range(len(fips)):
+        # Get name for output to user
+        if (composite_type == 'state'):
+            thename = df[df['fips'] == fips[i]]['state'].to_list()[0]            
+        else:
+            thename = df[df['fips'] == fips[i]]['county'].to_list()[0]
+        # merge the counties into one shape
+        comp_county = get_composite_UScounties_by_fips(countyshapes_df, fips_lists[i])
+        # Transform shapefile to coordinate system of population image        
+        comp_county_t = transform_shapefile(comp_county)
+        # Get population and population-weighted--population density of composite
+        (pop_orig, pwd_orig, pwlogpd_orig, imgshape, lat, lon) = \
+            get_pop_pwpd_pwlogpd(comp_county_t)
+        # Place output into new dataframe
+        outputrow = (newdf['fips'] == fips[i])
+        area = comp_county['landarea'].to_list()[0]
+        newdf.loc[outputrow, 'landarea'] = area
+        newdf.loc[outputrow, 'pop'] = pop_orig        
+        newdf.loc[outputrow, 'pwpd'] = pwd_orig
+        newdf.loc[outputrow, 'pwlogpd'] = pwlogpd_orig
+        # Find the latitude/longitude of the pop_centroid pixel
+        newdf.loc[outputrow, 'pop_centroid_lat'] = lat
+        newdf.loc[outputrow, 'pop_centroid_lon'] = lon
+        # Calculate population density
+        newdf.loc[outputrow, 'popdens'] = pop_orig/area
+        # Calculate population sparsity (gamma)
+        if do_gamma:
+            newdf.loc[outputrow, 'gamma'] = \
+                get_gamma(pop_orig, area, pwd_orig,
+                          popimage_type, popimage_resolution)
+        # Print result to user
+        print("=" * 80)
+        print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
+              + popimage_epoch + " " + popimage_type 
+              + " image with resolution " + popimage_resolution + "...\n")
+        print(composite_type + " " + thename 
+              + f", with FIPS = {fips[i]:d}, "
+              + f"has a population of {int(pop_orig):,d}.\n"
+              + f"The PWPD_{popimage_type:s}_{popimage_resolution:s}"
+              + f" is {pwd_orig:.1f} per km^2"
+              + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}\n"
+              + "The population centroid is at (lat, lon) = "
+              + f"({lat:0.2f}, {lon:0.2f})")
+    return newdf
+
+def get_composite_UScounties_by_fips(allcounties_df, fips_list):                         
+    # get dataframe with just the counties to combine
+    df = allcounties_df[allcounties_df['fips'].isin(fips_list)].copy()
+    # "dissolve" to merge all into single row with concatenated geometry
+    df['dummy'] = 'd'
+    new_df = df.dissolve(by='dummy', as_index=False)
+    # fix the land area for the merged shape (and convert to km^2)
+    new_df['landarea'] = df['landarea'].sum()/1e6
+    return new_df
 
 def get_UScounty_by_name(allcounties_df, stateabb, name_county):
     # Check county name against both short and long to handle, e.g.,
@@ -598,13 +714,13 @@ def get_UScounty_by_name(allcounties_df, stateabb, name_county):
 #        Population-weighted Density Calculation           #
 ############################################################
 
-def get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath, do_gamma,
-                        popimage_type, popimage_resolution, popimage_epoch):
+def get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath, do_gamma=True):
     #=== Copy the county data from the shapefiles dataframe
     #
     #    columns = ['fips_state', 'fips_county', 'county',
     #               'countylong', 'state', 'stateabb', 'landarea'
-    #               'pop', 'pwpd', 'pwlogpd', 'popdens', 'gamma']
+    #               'pop', 'pwpd', 'pwlogpd', 'popdens', 'gamma',
+    #               'pop_centroid_lat', 'pop_centroid_lon']
     #
     pwpd_counties = create_uscounties_dataframe(countyshapes_df)
     # convert area to km^2 from m^2
@@ -623,11 +739,14 @@ def get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath, do_gamma,
         # Transform shapefile to coordinate system of population image
         county_t = transform_shapefile(county)
         # Get population and population-weighted--population density
-        (pop_orig, pwd_orig, pwlogpd_orig, imgshape) = \
+        (pop_orig, pwd_orig, pwlogpd_orig, imgshape, lat, lon) = \
             get_pop_pwpd_pwlogpd(county_t)
         pwpd_counties.at[index, 'pop'] = pop_orig
         pwpd_counties.at[index, 'pwpd'] = pwd_orig
         pwpd_counties.at[index, 'pwlogpd'] = pwlogpd_orig
+        # Find the latitude/longitude of the pop_centroid pixel
+        pwpd_counties.at[index, 'pop_centroid_lat'] = lat
+        pwpd_counties.at[index, 'pop_centroid_lon'] = lon
         # Calculate population density
         pwpd_counties.at[index, 'popdens'] = pop_orig/area
         # Calculate population sparsity (gamma)
@@ -635,8 +754,6 @@ def get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath, do_gamma,
             pwpd_counties.at[index, 'gamma'] = \
                 get_gamma(pop_orig, area, pwd_orig,
                           popimage_type, popimage_resolution)
-        # Find centroid location in image
-        
         # Print result to user
         print("=" * 80)
         print(f"Using a {imgshape[0]:d}x{imgshape[1]:d} window of the "
@@ -647,7 +764,9 @@ def get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath, do_gamma,
               + f"has a population of {int(pop_orig):,d}.\n"
               + f"The PWPD_{popimage_type:s}_{popimage_resolution:s}"
               + f" is {pwd_orig:.1f} per km^2"
-              + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}")
+              + f" and exp[ PWlogPD ] = {np.exp(pwlogpd_orig):.1f}\n"
+              + "The population centroid is at (lat, lon) = "
+              + f"({lat:0.2f}, {lon:0.2f})")
         # Save to csv file after each state
         if (fips_state != prev_fips_state):
             pwpd_counties.to_csv(pwpd_counties_outfilepath, index=False)
@@ -659,18 +778,20 @@ def get_pop_pwpd_pwlogpd(window_df):
     if (popimage_type == 'GHS'):
         popimg, popimg_transform = \
             get_windowed_subimage(window_df, GHS_filepath)
-        totalpop, pwd, pwlogpd = \
+        totalpop, pwd, pwlogpd, pc_row, pc_col = \
             get_pwpd_from_count(popimg)
     elif (popimage_type == 'GPW'):
         popimg, popimg_transform = \
             get_windowed_subimage(window_df, GPW_popcount_filepath)
         pdimg, pdimg_transform = \
             get_windowed_subimage(window_df, GPW_popdensity_filepath)
-        totalpop, pwd, pwlogpd = get_pwpd_from_count_and_density(popimg, pdimg)
+        totalpop, pwd, pwlogpd, pc_row, pc_col = get_pwpd_from_count_and_density(popimg, pdimg)
     else:
         print("\n***Error: Population image type unknown/unset")
         exit(0)
-    return (totalpop, pwd, pwlogpd, np.array(popimg).shape)
+    # get lat/lon of centroid pixel
+    (lat, lon) = get_latlon(pc_col, pc_row, popimg.shape, popimg_transform)    
+    return (totalpop, pwd, pwlogpd, np.array(popimg).shape, lat, lon)
 
 def get_gamma(pop, area, pwpd, popimage_type, popimage_resolution_string):
     """Calculate the so-called population sparsity"""
@@ -725,7 +846,9 @@ def get_pwpd_from_count(img, nparr=False):
     else:
         pwd = 0.0
         pwlogpd = 0.0
-    return (totalpop, pwd, pwlogpd)
+    # Find the population centroid ("center of mass")
+    (pc_row, pc_col) = spndi.measurements.center_of_mass(arr)
+    return (totalpop, pwd, pwlogpd, pc_row, pc_col)
 
 def get_pwpd_from_count_and_density(pcimg, pdimg):
     if (popimage_type == 'GHS'):
@@ -752,8 +875,10 @@ def get_pwpd_from_count_and_density(pcimg, pdimg):
             / totalpop
     else:
         pwd = 0.0
-        pwlogpd = 0.0
-    return (totalpop, pwd, pwlogpd)
+        pwlogpd = 0.0 
+    # Find the population centroid ("center of mass")
+    (pc_row, pc_col) = spndi.measurements.center_of_mass(pcarr)
+    return (totalpop, pwd, pwlogpd, pc_row, pc_col)
 
 def GHS_pixels_to_coordinates(xpix, ypix, img_shape, img_transform,
                               inverse=False):
@@ -848,7 +973,7 @@ def get_cleaned_pwpd(window_df, Nclean, Ncheck, maxNzero, Nmaxpix):
             (la, lo) = get_latlon(x, y, popimg.shape, popimg_transform)
             lat.append(la); lon.append(lo)
             # calculate pwpd etc from cleaned image
-            (p, pw, pl) = get_pwpd_from_count(cl_arr, nparr=True)
+            (p, pw, pl, px, py) = get_pwpd_from_count(cl_arr, nparr=True)
             totalpop.append(p); pwd.append(pw); pwlogpd.append(pl)
             checked.append(Nchecked); zeros.append(8-nonzeropix)
     # After cleaning, find the new max pixels

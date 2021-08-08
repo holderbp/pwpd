@@ -13,12 +13,12 @@ outdir = "../output/"
 popimage_type = 'GHS' 
 #popimage_type = 'GPW'  
 #--- possible epochs are 2015 (GHS or GPW) and 2020 (GPW only)
-popimage_epoch = '2015'  
+popimage_epoch = '2020'  
 #--- possible resolutions (~ pixel length scale) are:
 #      GHS: '250m', '1km'
 #      GPW: '30as' (~1km), 2.5am', '15am', '30am', '1deg'
 popimage_resolution = '1km'
-#popimage_resolution = '2.5am'
+#popimage_resolution = '30as'
 # set this to False for GPW with resolution > 30as
 do_gamma = True
 
@@ -50,9 +50,10 @@ countyshapes_df = countyshapes_df.sort_values( by=['fips_state', 'fips_county'])
 #
 #      columns = ['fips_state', 'fips_county', 'county',
 #                 'countylong', 'state', 'stateabb', 'landarea'
-#                 'pop', 'pwpd', 'pwlogpd', 'popdens', 'gamma']
+#                 'pop', 'pwpd', 'pwlogpd', 'popdens', 'gamma',
+#                 'pop_centroid_lat', 'pop_centroid_lon']
 #           
 pwpd_counties = \
     pwpd.get_pwpd_UScounties(countyshapes_df, pwpd_counties_outfilepath,
-                             do_gamma, popimage_type, popimage_resolution,
-                             popimage_epoch)
+                             do_gamma=do_gamma)
+
